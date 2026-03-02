@@ -19,7 +19,7 @@
   "author": "IulianVOStrut",
   "license": "MIT",
   "dependencies": {
-    "chokidar": "^4.0.3",
+    "chokidar": "^5.0.0",
     "commander": "^14.0.3",
     "fast-glob": "^3.3.2"
   },
