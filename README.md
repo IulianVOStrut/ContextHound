@@ -39,7 +39,7 @@ It fits into your existing workflow as a CLI command, an `npm` script, or a GitH
 
 | | |
 |---|---|
-| **68 security rules** | Across 11 categories: injection, exfiltration, jailbreak, unsafe tool use, command injection, RAG poisoning, encoding, output handling, multimodal, skills marketplace, agentic |
+| **70 security rules** | Across 11 categories: injection, exfiltration, jailbreak, unsafe tool use, command injection, RAG poisoning, encoding, output handling, multimodal, skills marketplace, agentic |
 | **Numeric risk score (0-100)** | Normalized repo-level score with low, medium, high and critical thresholds |
 | **Mitigation detection** | Explicit safety language in your prompts reduces your score |
 | **7 output formats** | Console, JSON, SARIF, GitHub Annotations, Markdown, JSONL streaming, and interactive HTML |
@@ -393,6 +393,8 @@ Detects architectural mistakes in Retrieval-Augmented Generation pipelines that 
 | RAG-002 | High | Instruction-like phrases ("system prompt:", "always return", "never redact") detected inside a document ingestion loop |
 | RAG-003 | High | Agent memory store written directly from user-controlled input without validation |
 | RAG-004 | Medium | Prompt instructs model to treat retrieved context as highest priority, overriding developer instructions |
+| RAG-005 | Medium | Provenance-free retrieval — chunks inserted into prompt without source metadata check |
+| RAG-006 | High | No ACL or trust-tier filter applied before retrieval enters the prompt |
 
 ### G. Encoding (ENC)
 
