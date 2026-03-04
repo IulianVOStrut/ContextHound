@@ -107,7 +107,7 @@ hound scan --format markdown --out report
 # Stream findings as JSONL (one JSON object per line)
 hound scan --format jsonl | jq '.severity'
 
-# List all 68 rules
+# List all 70 rules
 hound scan --list-rules
 
 # Interactive HTML report (self-contained, open in browser)
@@ -550,6 +550,32 @@ tests/
 └── workflows/
     └── context-hound.yml    # CI workflow
 ```
+
+---
+
+## Benchmark
+
+ContextHound ships a labeled benchmark dataset for measuring false-positive and detection rates. Run it after building:
+
+```bash
+npm run benchmark
+```
+
+The benchmark scans two fixture directories:
+
+| Directory | Purpose |
+|-----------|---------|
+| `benchmarks/safe/` | 5 files with genuine safe patterns — expect **0** findings |
+| `benchmarks/unsafe/` | 8 files with real vulnerabilities — one rule each |
+
+**Results on v1.4.0:**
+
+```
+File-level FP rate:   0.0%   (0 / 5 safe files produced findings)
+Detection rate:      100.0%  (8/8 expected findings triggered)
+```
+
+The benchmark exits with code 1 if any false positives or false negatives are found, making it suitable as a CI quality gate for rule changes. To add a fixture, drop a file into `benchmarks/safe/` or `benchmarks/unsafe/` and update `benchmarks/labels.json` with the expected findings.
 
 ---
 
