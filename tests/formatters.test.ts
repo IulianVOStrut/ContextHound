@@ -4,6 +4,8 @@ import { buildGithubAnnotationsReport } from '../src/report/githubAnnotations';
 import { buildMarkdownReport } from '../src/report/markdown';
 import { buildJsonlReport } from '../src/report/jsonl';
 import { buildHtmlReport } from '../src/report/html';
+import { buildCsvReport } from '../src/report/csv';
+import { buildJunitReport } from '../src/report/junit';
 import type { ScanResult, Finding } from '../src/types';
 
 function makeFinding(overrides: Partial<Finding> = {}): Finding {
@@ -271,5 +273,128 @@ describe('HTML formatter', () => {
     const html = buildHtmlReport(result);
     expect(html).not.toMatch(/src="https?:\/\//);
     expect(html).not.toMatch(/href="https?:\/\//);
+  });
+});
+
+// ── CSV formatter ─────────────────────────────────────────────────────────────
+
+describe('CSV formatter', () => {
+  it('emits a header row and one data row per finding', () => {
+    const result = makeScanResult();
+    const csv = buildCsvReport(result);
+    const rows = csv.split('\n');
+    expect(rows).toHaveLength(2); // header + 1 finding
+    expect(rows[0]).toBe('rule_id,severity,confidence,file,line_start,line_end,title,evidence,remediation');
+  });
+
+  it('includes all finding fields in the correct column order', () => {
+    const result = makeScanResult();
+    const csv = buildCsvReport(result);
+    const dataRow = csv.split('\n')[1];
+    expect(dataRow).toContain('INJ-001');
+    expect(dataRow).toContain('high');
+    expect(dataRow).toContain('src/api.ts');
+    expect(dataRow).toContain('42');
+  });
+
+  it('wraps fields containing commas in double-quotes', () => {
+    const finding = makeFinding({ title: 'Title, with comma' });
+    const result = makeScanResult({ allFindings: [finding], files: [{ file: 'src/api.ts', findings: [finding], fileScore: 30 }] });
+    const csv = buildCsvReport(result);
+    expect(csv).toContain('"Title, with comma"');
+  });
+
+  it('escapes embedded double-quotes by doubling them', () => {
+    const finding = makeFinding({ evidence: 'say "hello"' });
+    const result = makeScanResult({ allFindings: [finding], files: [{ file: 'src/api.ts', findings: [finding], fileScore: 30 }] });
+    const csv = buildCsvReport(result);
+    expect(csv).toContain('"say ""hello"""');
+  });
+
+  it('returns only the header row when there are no findings', () => {
+    const result = makeScanResult({ allFindings: [], files: [] });
+    const csv = buildCsvReport(result);
+    const rows = csv.split('\n').filter(r => r.trim());
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toContain('rule_id');
+  });
+
+  it('emits one row per finding with multiple findings', () => {
+    const findings = [
+      makeFinding({ id: 'INJ-001', lineStart: 1 }),
+      makeFinding({ id: 'EXF-001', lineStart: 2 }),
+    ];
+    const result = makeScanResult({
+      allFindings: findings,
+      files: [{ file: 'src/api.ts', findings, fileScore: 60 }],
+    });
+    const csv = buildCsvReport(result);
+    const rows = csv.split('\n');
+    expect(rows).toHaveLength(3); // header + 2 findings
+  });
+});
+
+// ── JUnit XML formatter ───────────────────────────────────────────────────────
+
+describe('JUnit XML formatter', () => {
+  it('produces a valid XML declaration and testsuites root', () => {
+    const result = makeScanResult();
+    const xml = buildJunitReport(result);
+    expect(xml).toContain('<?xml version="1.0" encoding="UTF-8"?>');
+    expect(xml).toContain('<testsuites');
+    expect(xml).toContain('</testsuites>');
+  });
+
+  it('groups findings into a testsuite per file', () => {
+    const result = makeScanResult();
+    const xml = buildJunitReport(result);
+    expect(xml).toContain('<testsuite name="src/api.ts"');
+    expect(xml).toContain('</testsuite>');
+  });
+
+  it('emits one testcase with a failure element per finding', () => {
+    const result = makeScanResult();
+    const xml = buildJunitReport(result);
+    expect(xml).toContain('<testcase');
+    expect(xml).toContain('<failure');
+    expect(xml).toContain('INJ-001');
+  });
+
+  it('sets tests and failures counts on testsuites', () => {
+    const result = makeScanResult();
+    const xml = buildJunitReport(result);
+    expect(xml).toContain('tests="1"');
+    expect(xml).toContain('failures="1"');
+  });
+
+  it('escapes XML special characters in evidence', () => {
+    const finding = makeFinding({ evidence: '<script>alert("xss")</script>' });
+    const result = makeScanResult({ allFindings: [finding], files: [{ file: 'src/api.ts', findings: [finding], fileScore: 30 }] });
+    const xml = buildJunitReport(result);
+    expect(xml).toContain('&lt;script&gt;');
+    expect(xml).not.toContain('<script>');
+  });
+
+  it('emits testsuites for each file that has findings', () => {
+    const f1 = makeFinding({ id: 'INJ-001', file: 'src/a.ts' });
+    const f2 = makeFinding({ id: 'EXF-001', file: 'src/b.ts' });
+    const result = makeScanResult({
+      allFindings: [f1, f2],
+      files: [
+        { file: 'src/a.ts', findings: [f1], fileScore: 30 },
+        { file: 'src/b.ts', findings: [f2], fileScore: 30 },
+      ],
+    });
+    const xml = buildJunitReport(result);
+    expect(xml).toContain('name="src/a.ts"');
+    expect(xml).toContain('name="src/b.ts"');
+  });
+
+  it('produces empty testsuites element when there are no findings', () => {
+    const result = makeScanResult({ allFindings: [], files: [] });
+    const xml = buildJunitReport(result);
+    expect(xml).toContain('<testsuites');
+    expect(xml).toContain('tests="0"');
+    expect(xml).not.toContain('<testsuite ');
   });
 });

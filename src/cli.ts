@@ -11,6 +11,8 @@ import { buildGithubAnnotationsReport } from './report/githubAnnotations.js';
 import { buildMarkdownReport } from './report/markdown.js';
 import { buildJsonlReport } from './report/jsonl.js';
 import { buildHtmlReport } from './report/html.js';
+import { buildCsvReport } from './report/csv.js';
+import { buildJunitReport } from './report/junit.js';
 import { allRules } from './rules/index.js';
 import type { AuditConfig, OutputFormat, FailOn, Finding, ScanResult } from './types.js';
 
@@ -19,7 +21,7 @@ const program = new Command();
 program
   .name('hound')
   .description('ContextHound: Scan LLM prompts for injection and security risks')
-  .version('1.4.0');
+  .version('1.5.0');
 
 // ── init command ─────────────────────────────────────────────────────────────
 
@@ -80,7 +82,7 @@ program
   .command('scan', { isDefault: true })
   .description('Scan a repository for prompt-injection risks')
   .option('-c, --config <path>', 'Path to .contexthoundrc.json config file')
-  .option('-f, --format <formats>', 'Output formats: console,json,sarif,github-annotations,markdown,jsonl (comma-separated)', 'console')
+  .option('-f, --format <formats>', 'Output formats: console,json,sarif,github-annotations,markdown,jsonl,html,csv,junit (comma-separated)', 'console')
   .option('-o, --out <path>', 'Output path for json/sarif/markdown files')
   .option('-t, --threshold <n>', 'Risk score threshold (0-100). Fail if score >= threshold')
   .option('--fail-on <level>', 'Fail on first finding of this severity: critical|high|medium')
@@ -239,6 +241,26 @@ program
         : path.join(cwd, 'hound-report.html');
       fs.writeFileSync(outPath, html, 'utf8');
       console.log(`HTML report written to: ${outPath}`);
+    }
+
+    // CSV report
+    if (formats.includes('csv')) {
+      const csv = buildCsvReport(result);
+      const outPath = config.out
+        ? (config.out.endsWith('.csv') ? config.out : `${config.out}.csv`)
+        : path.join(cwd, 'hound-report.csv');
+      fs.writeFileSync(outPath, csv, 'utf8');
+      console.log(`CSV report written to: ${outPath}`);
+    }
+
+    // JUnit XML report
+    if (formats.includes('junit')) {
+      const junit = buildJunitReport(result);
+      const outPath = config.out
+        ? (config.out.endsWith('.xml') ? config.out : `${config.out}.xml`)
+        : path.join(cwd, 'hound-report.xml');
+      fs.writeFileSync(outPath, junit, 'utf8');
+      console.log(`JUnit XML report written to: ${outPath}`);
     }
 
     // JSONL report (findings already streamed; write to file if --out set)

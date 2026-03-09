@@ -1,6 +1,6 @@
 export type Severity = 'low' | 'medium' | 'high' | 'critical';
 export type Confidence = 'low' | 'medium' | 'high';
-export type OutputFormat = 'console' | 'json' | 'sarif' | 'github-annotations' | 'markdown' | 'jsonl' | 'html';
+export type OutputFormat = 'console' | 'json' | 'sarif' | 'github-annotations' | 'markdown' | 'jsonl' | 'html' | 'csv' | 'junit';
 export type FailOn = 'critical' | 'high' | 'medium';
 
 export interface Finding {
