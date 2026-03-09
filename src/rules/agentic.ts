@@ -100,4 +100,75 @@ export const agenticRules: Rule[] = [
       return matchPattern(prompt, pattern);
     },
   },
+  {
+    id: 'AGT-005',
+    title: 'Agent trusts claimed identity without cryptographic verification',
+    severity: 'critical',
+    confidence: 'medium',
+    category: 'agentic',
+    remediation:
+      'Never grant elevated trust based solely on a message field claiming to be from a specific agent (agentId, sender, source, from_agent). Any agent can forge these fields. Verify inter-agent messages with HMAC signatures, JWT tokens, or a shared secret before acting on claimed identity.',
+    check(prompt: ExtractedPrompt): RuleMatch[] {
+      if (prompt.kind !== 'code-block') return [];
+      const text = prompt.text;
+
+      // Only fire when there is no cryptographic verification present
+      const verifyPattern = /hmac|signature|verify|jwt|bearer\s+token|shared.?secret/i;
+      if (verifyPattern.test(text)) return [];
+
+      // Detect: conditional trust decision based on a claimed agent identity field
+      const pattern =
+        /(?:agentId|agent_id|from_agent|sender|source)\s*[!=]={1,2}\s*['"`][^'"`]+['"`]/i;
+      return matchPattern(prompt, pattern);
+    },
+  },
+  {
+    id: 'AGT-006',
+    title: 'Raw agent output chained as input to another agent without validation',
+    severity: 'high',
+    confidence: 'medium',
+    category: 'agentic',
+    remediation:
+      'Never pass one agent\'s raw output directly as the instruction input to another agent. Validate, sanitize, and schema-check intermediate outputs before they become instructions. A compromised or manipulated first agent can inject malicious instructions into the entire downstream chain.',
+    check(prompt: ExtractedPrompt): RuleMatch[] {
+      if (prompt.kind !== 'code-block') return [];
+      // Detect: agent/chain call where argument is another agent's .output/.content/.result/.text
+      const pattern =
+        /\.(?:run|invoke|generate|call|complete|chat)\s*\(\s*(?:await\s+)?(?:\w+\.(?:output|content|text|result|choices|message|\[\s*0\s*\])|output|result)\b/i;
+      return matchPattern(prompt, pattern);
+    },
+  },
+  {
+    id: 'AGT-007',
+    title: 'Agent modifies its own system prompt, instructions, or tool list at runtime',
+    severity: 'critical',
+    confidence: 'high',
+    category: 'agentic',
+    remediation:
+      'An agent should never overwrite its own system prompt, instructions, or tools with LLM-generated content. This is a self-modification attack vector — a malicious prompt can permanently alter agent behaviour for all subsequent interactions. Keep agent configuration immutable at runtime.',
+    check(prompt: ExtractedPrompt): RuleMatch[] {
+      if (prompt.kind !== 'code-block') return [];
+
+      const results: RuleMatch[] = [];
+      const lines = prompt.text.split('\n');
+
+      // Self-modification: agent/self.config field assigned from LLM output variable
+      const configWritePattern =
+        /(?:agent|self)\s*\.(?:system_prompt|systemPrompt|instructions?|system|tools?)(?:\s*\+?=\s+|\.(?:append|extend|add|push)\s*\()/i;
+      const llmOutputPattern =
+        /\b(?:response|output|result|completion|llm_output|model_output|answer|generated|content|choices)\b/i;
+
+      lines.forEach((line, i) => {
+        if (configWritePattern.test(line) && llmOutputPattern.test(line)) {
+          results.push({
+            evidence: line.trim(),
+            lineStart: prompt.lineStart + i,
+            lineEnd: prompt.lineStart + i,
+          });
+        }
+      });
+
+      return results;
+    },
+  },
 ];

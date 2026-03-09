@@ -405,4 +405,44 @@ export const injectionRules: Rule[] = [
       return results;
     },
   },
+  {
+    id: 'INJ-016',
+    title: 'Template engine renders user-controlled string as template source',
+    severity: 'critical',
+    confidence: 'high',
+    category: 'injection',
+    remediation:
+      'Never pass user-controlled input as the template source to Jinja2, Handlebars, Nunjucks, or Mustache. User input should only be passed as template variables (context data), never as the template string itself. Use Environment(sandbox=True) for Jinja2, or pre-compile templates from trusted static sources only.',
+    check(prompt: ExtractedPrompt, filePath: string): RuleMatch[] {
+      if (prompt.kind !== 'code-block') return [];
+      const ext = path.extname(filePath).toLowerCase();
+      const results: RuleMatch[] = [];
+      const lines = prompt.text.split('\n');
+
+      // Python: Template(variable), Environment().from_string(variable),
+      // render_template_string(variable), env.from_string(variable)
+      const pyPattern =
+        /(?:Template|from_string|render_template_string)\s*\(\s*(?!['"`\{#])[a-z_][a-z0-9_]*/i;
+
+      // JS/TS: Handlebars.compile(variable), nunjucks.renderString(variable),
+      // Mustache.render(variable, ...), ejs.render(variable, ...)
+      const jsPattern =
+        /(?:Handlebars\.compile|nunjucks\.renderString|Mustache\.render|ejs\.render)\s*\(\s*(?!['"`])[a-z_$][a-z0-9_$]*/i;
+
+      lines.forEach((line, i) => {
+        const match =
+          (['.py'].includes(ext) ? pyPattern.test(line) : false) ||
+          (['.ts', '.js', '.tsx', '.jsx', '.vue'].includes(ext) ? jsPattern.test(line) : false);
+        if (match) {
+          results.push({
+            evidence: line.trim(),
+            lineStart: prompt.lineStart + i,
+            lineEnd: prompt.lineStart + i,
+          });
+        }
+      });
+
+      return results;
+    },
+  },
 ];

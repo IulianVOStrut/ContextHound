@@ -1,4 +1,4 @@
-import { injectionRules, exfiltrationRules, jailbreakRules, unsafeToolsRules, commandInjectionRules, ragRules, encodingRules, outputHandlingRules, multimodalRules, skillsRules, agenticRules, mcpRules } from '../src/rules/index';
+import { injectionRules, exfiltrationRules, jailbreakRules, unsafeToolsRules, commandInjectionRules, ragRules, encodingRules, outputHandlingRules, multimodalRules, skillsRules, agenticRules, mcpRules, supplyChainRules, dosRules } from '../src/rules/index';
 import type { ExtractedPrompt } from '../src/scanner/extractor';
 
 function makePrompt(text: string, line = 1, kind: ExtractedPrompt['kind'] = 'raw'): ExtractedPrompt {
@@ -1875,5 +1875,472 @@ describe('MCP-005: Stdio transport with shell:true', () => {
   it('does not fire on raw kind', () => {
     const code = mcpHeader + 'const t = new StdioClientTransport({ shell: true });';
     expect(rule.check(makePrompt(code, 1, 'raw'), 'client.ts')).toHaveLength(0);
+  });
+});
+
+// ── Encoding rules (ENC-003–006) ─────────────────────────────────────────────
+
+describe('ENC-003: Unicode Tags block characters', () => {
+  const rule = encodingRules.find(r => r.id === 'ENC-003')!;
+
+  it('flags a line containing a Unicode Tags block character (surrogate pair)', () => {
+    // \uDB40\uDC41 = U+E0041, the Tags block 'A'
+    const prompt = makePrompt('Hello \uDB40\uDC41 world');
+    expect(rule.check(prompt, 'test.ts')).toHaveLength(1);
+  });
+
+  it('flags multiple lines each containing Tags block characters', () => {
+    const prompt = makePrompt('Normal line\nHidden \uDB40\uDC20 text\nAnother \uDB40\uDC7F here');
+    expect(rule.check(prompt, 'test.ts')).toHaveLength(2);
+  });
+
+  it('does not flag a line with no Tags block characters', () => {
+    const prompt = makePrompt('Completely normal ASCII text with no hidden chars.');
+    expect(rule.check(prompt, 'test.ts')).toHaveLength(0);
+  });
+
+  it('does not flag regular supplementary-plane emoji (outside Tags block)', () => {
+    // U+1F600 GRINNING FACE — outside the Tags block
+    const prompt = makePrompt('Hello \uD83D\uDE00 world');
+    expect(rule.check(prompt, 'test.ts')).toHaveLength(0);
+  });
+});
+
+describe('ENC-004: Consecutive zero-width character sequence', () => {
+  const rule = encodingRules.find(r => r.id === 'ENC-004')!;
+
+  it('flags 3 consecutive ZWJ characters', () => {
+    const prompt = makePrompt('text\u200D\u200D\u200Dmore');
+    expect(rule.check(prompt, 'test.ts')).toHaveLength(1);
+  });
+
+  it('flags 4 mixed ZWJ/ZWNJ/ZWSP characters', () => {
+    const prompt = makePrompt('x\u200B\u200C\u200D\u200By');
+    expect(rule.check(prompt, 'test.ts')).toHaveLength(1);
+  });
+
+  it('does not flag 2 consecutive ZWJ (below threshold)', () => {
+    const prompt = makePrompt('text\u200D\u200Dmore');
+    expect(rule.check(prompt, 'test.ts')).toHaveLength(0);
+  });
+
+  it('does not flag a line with no zero-width characters', () => {
+    const prompt = makePrompt('Plain ASCII text.');
+    expect(rule.check(prompt, 'test.ts')).toHaveLength(0);
+  });
+});
+
+describe('ENC-005: Unicode variation selector sequence', () => {
+  const rule = encodingRules.find(r => r.id === 'ENC-005')!;
+
+  it('flags 3 consecutive VS1–VS16 variation selectors', () => {
+    // U+FE00, U+FE01, U+FE02
+    const prompt = makePrompt('A\uFE00\uFE01\uFE02B');
+    expect(rule.check(prompt, 'test.ts')).toHaveLength(1);
+  });
+
+  it('flags 3 consecutive VS17+ variation selectors (surrogate pairs)', () => {
+    // VS17 = \uDB40\uDD00, VS18 = \uDB40\uDD01, VS19 = \uDB40\uDD02
+    const prompt = makePrompt('A\uDB40\uDD00\uDB40\uDD01\uDB40\uDD02B');
+    expect(rule.check(prompt, 'test.ts')).toHaveLength(1);
+  });
+
+  it('does not flag 2 consecutive variation selectors (below threshold)', () => {
+    const prompt = makePrompt('A\uFE00\uFE01B');
+    expect(rule.check(prompt, 'test.ts')).toHaveLength(0);
+  });
+
+  it('does not flag a line with no variation selectors', () => {
+    const prompt = makePrompt('No variation selectors here.');
+    expect(rule.check(prompt, 'test.ts')).toHaveLength(0);
+  });
+});
+
+describe('ENC-006: ROT13 or Caesar cipher near LLM context', () => {
+  const rule = encodingRules.find(r => r.id === 'ENC-006')!;
+
+  it('flags rot13() call in code', () => {
+    const prompt = makePrompt('const out = rot13(userInput);', 1, 'code-block');
+    expect(rule.check(prompt, 'test.ts')).toHaveLength(1);
+  });
+
+  it('flags codecs.encode with rot-13 (Python style)', () => {
+    const prompt = makePrompt("encoded = codecs.encode(text, 'rot-13')", 1, 'code-block');
+    expect(rule.check(prompt, 'test.py')).toHaveLength(1);
+  });
+
+  it('flags charCodeAt arithmetic with +13', () => {
+    const prompt = makePrompt('c.charCodeAt(0) + 13', 1, 'template-string');
+    expect(rule.check(prompt, 'test.ts')).toHaveLength(1);
+  });
+
+  it('flags charCodeAt arithmetic with -13', () => {
+    const prompt = makePrompt('c.charCodeAt(0) - 13', 1, 'object-field');
+    expect(rule.check(prompt, 'test.ts')).toHaveLength(1);
+  });
+
+  it('does not flag raw kind (raw prompt text is not code)', () => {
+    const prompt = makePrompt('Use rot13 encoding for this text.', 1, 'raw');
+    expect(rule.check(prompt, 'test.txt')).toHaveLength(0);
+  });
+
+  it('does not flag unrelated charCodeAt arithmetic', () => {
+    const prompt = makePrompt('c.charCodeAt(0) + 32', 1, 'code-block');
+    expect(rule.check(prompt, 'test.ts')).toHaveLength(0);
+  });
+});
+
+// ── INJ-016: Template engine injection ───────────────────────────────────────
+
+describe('INJ-016: Template engine renders user-controlled string as template source', () => {
+  const rule = injectionRules.find(r => r.id === 'INJ-016')!;
+
+  it('flags Jinja2 Template(variable) in Python', () => {
+    const code = 'from jinja2 import Template\nt = Template(userInput)\n';
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'render.py')).toHaveLength(1);
+  });
+
+  it('flags render_template_string(variable) in Python', () => {
+    const code = 'result = render_template_string(user_template)\n';
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'views.py')).toHaveLength(1);
+  });
+
+  it('flags from_string(variable) in Python', () => {
+    const code = 'env = Environment()\ntmpl = env.from_string(request_body)\n';
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'app.py')).toHaveLength(1);
+  });
+
+  it('does not flag Template with a string literal in Python', () => {
+    const code = 'tmpl = Template("Hello {{ name }}")\n';
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'app.py')).toHaveLength(0);
+  });
+
+  it('flags Handlebars.compile(variable) in JS', () => {
+    const code = 'const fn = Handlebars.compile(userTemplate);\n';
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'render.ts')).toHaveLength(1);
+  });
+
+  it('flags nunjucks.renderString(variable) in JS', () => {
+    const code = 'nunjucks.renderString(tpl, ctx);\n';
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'server.js')).toHaveLength(1);
+  });
+
+  it('flags ejs.render(variable) in JS', () => {
+    const code = 'const html = ejs.render(userTpl, data);\n';
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'view.js')).toHaveLength(1);
+  });
+
+  it('does not flag Handlebars.compile with a string literal in JS', () => {
+    const code = "const fn = Handlebars.compile('{{name}}');\n";
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'render.ts')).toHaveLength(0);
+  });
+
+  it('does not fire on non-code-block kind', () => {
+    const code = 'Template(userInput)';
+    expect(rule.check(makePrompt(code, 1, 'raw'), 'app.py')).toHaveLength(0);
+  });
+
+  it('does not apply Python pattern to JS files', () => {
+    // Template() exists in JS but the pyPattern should not apply
+    const code = 'const t = Template(userInput);\n';
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'app.ts')).toHaveLength(0);
+  });
+});
+
+// ── Supply chain rules (SCH-001, SCH-003) ────────────────────────────────────
+
+describe('SCH-001: Unsafe pickle or torch deserialization', () => {
+  const rule = supplyChainRules.find(r => r.id === 'SCH-001')!;
+
+  it('flags pickle.load()', () => {
+    const code = 'import pickle\nmodel = pickle.load(open("model.pkl", "rb"))\n';
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'load.py')).toHaveLength(1);
+  });
+
+  it('flags pickle.loads()', () => {
+    const code = 'import pickle\nobj = pickle.loads(data)\n';
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'load.py')).toHaveLength(1);
+  });
+
+  it('flags torch.load() without weights_only=True', () => {
+    const code = 'import torch\nmodel = torch.load("model.pt")\n';
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'train.py')).toHaveLength(1);
+  });
+
+  it('does not flag torch.load() with weights_only=True on same line', () => {
+    const code = 'import torch\nmodel = torch.load("model.pt", weights_only=True)\n';
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'train.py')).toHaveLength(0);
+  });
+
+  it('does not flag torch.load() with weights_only=True within 3 lines', () => {
+    const code = [
+      'import torch',
+      'model = torch.load(',
+      '    "model.pt",',
+      '    weights_only=True',
+      ')',
+    ].join('\n');
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'train.py')).toHaveLength(0);
+  });
+
+  it('does not fire on non-code-block kind', () => {
+    const code = 'pickle.load(f)';
+    expect(rule.check(makePrompt(code, 1, 'raw'), 'load.py')).toHaveLength(0);
+  });
+});
+
+describe('SCH-003: LangChain unsafe deserialization without allowlist (CVE-2025-68664)', () => {
+  const rule = supplyChainRules.find(r => r.id === 'SCH-003')!;
+
+  it('flags loads() without allowlist in a langchain file', () => {
+    const code = [
+      'from langchain.load import loads',
+      'chain = loads(serialized_chain)',
+    ].join('\n');
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'chain.py')).toHaveLength(1);
+  });
+
+  it('flags load() without allowlist in a langchain_core file', () => {
+    const code = [
+      'from langchain_core.load import load',
+      'obj = load(data)',
+    ].join('\n');
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'core.py')).toHaveLength(1);
+  });
+
+  it('does not flag loads() with valid_namespaces on same line', () => {
+    const code = [
+      'from langchain.load import loads',
+      'chain = loads(data, valid_namespaces=["langchain"])',
+    ].join('\n');
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'chain.py')).toHaveLength(0);
+  });
+
+  it('does not flag loads() with allowed_objects within 3 lines', () => {
+    const code = [
+      'from langchain.load import loads',
+      'chain = loads(',
+      '    serialized,',
+      '    allowed_objects=SAFE_TYPES',
+      ')',
+    ].join('\n');
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'chain.py')).toHaveLength(0);
+  });
+
+  it('does not flag loads() in a file that does not import langchain.load', () => {
+    const code = 'result = loads(json_data)\n';
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'util.py')).toHaveLength(0);
+  });
+
+  it('does not fire on non-code-block kind', () => {
+    const code = 'from langchain.load import loads\nchain = loads(data)';
+    expect(rule.check(makePrompt(code, 1, 'raw'), 'chain.py')).toHaveLength(0);
+  });
+});
+
+// ── DoS rules (DOS-001) ───────────────────────────────────────────────────────
+
+describe('DOS-001: LLM completion call with no token limit', () => {
+  const rule = dosRules.find(r => r.id === 'DOS-001')!;
+
+  it('flags openai chat.completions.create without max_tokens', () => {
+    const code = [
+      'import OpenAI from "openai";',
+      'const client = new OpenAI();',
+      'const resp = await client.chat.completions.create({',
+      '  model: "gpt-4o",',
+      '  messages: [{ role: "user", content: prompt }],',
+      '});',
+    ].join('\n');
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'api.ts')).toHaveLength(1);
+  });
+
+  it('does not flag chat.completions.create with max_tokens', () => {
+    const code = [
+      'const resp = await client.chat.completions.create({',
+      '  model: "gpt-4o",',
+      '  messages: msgs,',
+      '  max_tokens: 1024,',
+      '});',
+    ].join('\n');
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'api.ts')).toHaveLength(0);
+  });
+
+  it('flags anthropic messages.create without max_tokens', () => {
+    const code = [
+      'const msg = await client.messages.create({',
+      '  model: "claude-opus-4-6",',
+      '  messages: [{ role: "user", content: userMsg }],',
+      '});',
+    ].join('\n');
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'claude.ts')).toHaveLength(1);
+  });
+
+  it('does not flag messages.create with max_tokens', () => {
+    const code = [
+      'const msg = await client.messages.create({',
+      '  model: "claude-opus-4-6",',
+      '  max_tokens: 512,',
+      '  messages: [{ role: "user", content: userMsg }],',
+      '});',
+    ].join('\n');
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'claude.ts')).toHaveLength(0);
+  });
+
+  it('flags ChatOpenAI() without maxTokens', () => {
+    const code = [
+      'from langchain_openai import ChatOpenAI',
+      'llm = ChatOpenAI(model="gpt-4o")',
+    ].join('\n');
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'chain.py')).toHaveLength(1);
+  });
+
+  it('does not flag ChatOpenAI() with max_tokens in same 20-line window', () => {
+    const code = [
+      'llm = ChatOpenAI(',
+      '    model="gpt-4o",',
+      '    max_tokens=512,',
+      ')',
+    ].join('\n');
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'chain.py')).toHaveLength(0);
+  });
+
+  it('does not fire on non-code-block kind', () => {
+    const code = 'client.chat.completions.create({ model: "gpt-4o" })';
+    expect(rule.check(makePrompt(code, 1, 'raw'), 'api.ts')).toHaveLength(0);
+  });
+});
+
+// ── Agentic rules (AGT-005–007) ───────────────────────────────────────────────
+
+describe('AGT-005: Agent trusts claimed identity without cryptographic verification', () => {
+  const rule = agenticRules.find(r => r.id === 'AGT-005')!;
+
+  it('flags trust decision based on agentId equality check', () => {
+    const code = [
+      'import { McpServer } from "@modelcontextprotocol/sdk";',
+      'if (msg.agentId === "trusted-agent") {',
+      '  await executePrivilegedAction();',
+      '}',
+    ].join('\n');
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'agent.ts')).toHaveLength(1);
+  });
+
+  it('flags trust decision based on sender field', () => {
+    const code = [
+      'const processMsg = (msg: any) => {',
+      '  if (msg.sender === "coordinator") {',
+      '    runTask(msg.payload);',
+      '  }',
+      '};',
+    ].join('\n');
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'agent.ts')).toHaveLength(1);
+  });
+
+  it('does not flag when HMAC verification is present', () => {
+    const code = [
+      'const valid = hmac.verify(msg.signature, secret);',
+      'if (valid && msg.agentId === "trusted") {',
+      '  runTask();',
+      '}',
+    ].join('\n');
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'agent.ts')).toHaveLength(0);
+  });
+
+  it('does not flag when JWT verification is present', () => {
+    const code = [
+      'jwt.verify(token, secret);',
+      'if (msg.from_agent === "orchestrator") {',
+      '  proceed();',
+      '}',
+    ].join('\n');
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'agent.ts')).toHaveLength(0);
+  });
+
+  it('does not fire on non-code-block kind', () => {
+    const code = 'if (msg.agentId === "admin") { doSomething(); }';
+    expect(rule.check(makePrompt(code, 1, 'raw'), 'agent.ts')).toHaveLength(0);
+  });
+});
+
+describe('AGT-006: Raw agent output chained as input to another agent without validation', () => {
+  const rule = agenticRules.find(r => r.id === 'AGT-006')!;
+
+  it('flags .invoke() called with another agent output property', () => {
+    const code = [
+      'const result1 = await agentA.invoke(userInput);',
+      'const result2 = await agentB.invoke(result1.output);',
+    ].join('\n');
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'chain.ts')).toHaveLength(1);
+  });
+
+  it('flags .run() called with agent .content property', () => {
+    const code = 'const out = await nextAgent.run(prevAgent.content);';
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'chain.ts')).toHaveLength(1);
+  });
+
+  it('flags .generate() called with .result variable', () => {
+    const code = 'const finalResponse = chain.generate(result);';
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'chain.ts')).toHaveLength(1);
+  });
+
+  it('does not flag .invoke() called with validated/sanitized input', () => {
+    const code = [
+      'const raw = await agentA.invoke(userInput);',
+      'const sanitized = validate(raw);',
+      'const result = await agentB.invoke(sanitized);',
+    ].join('\n');
+    // The rule looks for .invoke(someVar.property) pattern — sanitized has no property access
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'chain.ts')).toHaveLength(0);
+  });
+
+  it('does not fire on non-code-block kind', () => {
+    const code = 'agentB.invoke(result1.output)';
+    expect(rule.check(makePrompt(code, 1, 'raw'), 'chain.ts')).toHaveLength(0);
+  });
+});
+
+describe('AGT-007: Agent modifies its own system prompt, instructions, or tool list at runtime', () => {
+  const rule = agenticRules.find(r => r.id === 'AGT-007')!;
+
+  it('flags agent.system_prompt = response', () => {
+    const code = [
+      'const response = await llm.complete(userInput);',
+      'agent.system_prompt = response;',
+    ].join('\n');
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'agent.py')).toHaveLength(1);
+  });
+
+  it('flags self.instructions = output', () => {
+    const code = [
+      'output = llm.generate(prompt)',
+      'self.instructions = output',
+    ].join('\n');
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'agent.py')).toHaveLength(1);
+  });
+
+  it('flags agent.tools.append(result)', () => {
+    const code = [
+      'result = generate_tool(user_request)',
+      'agent.tools.append(result)',
+    ].join('\n');
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'agent.py')).toHaveLength(1);
+  });
+
+  it('flags agent.systemPrompt += completion', () => {
+    const code = 'agent.systemPrompt += completion;';
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'agent.ts')).toHaveLength(1);
+  });
+
+  it('does not flag agent.system_prompt assigned from a string literal', () => {
+    // configWritePattern must match AND llmOutputPattern must match on the same line;
+    // a pure string literal assignment has no llmOutputPattern match
+    const code = 'agent.system_prompt = "You are a helpful assistant.";';
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'agent.ts')).toHaveLength(0);
+  });
+
+  it('does not fire on non-code-block kind', () => {
+    const code = 'agent.system_prompt = response';
+    expect(rule.check(makePrompt(code, 1, 'raw'), 'agent.py')).toHaveLength(0);
   });
 });

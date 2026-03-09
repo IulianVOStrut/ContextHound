@@ -33,6 +33,8 @@ const OCR_API_PATTERN = /Tesseract\.createWorker\s*\(|vision\.textDetection\s*\(
 const DOM_SOURCE_PATTERN = /window\.location\.(?:search|hash|href)|document\.cookie\b|document\.querySelector\s*\(|document\.getElementById\s*\(/i;
 // MCP (Model Context Protocol) SDK imports — triggers MCP-001 through MCP-005
 const MCP_PATTERN = /@modelcontextprotocol\/sdk|StdioServerTransport|StdioClientTransport|SSEClientTransport|McpServer\b|CreateMessageRequestSchema/i;
+// LLM completion calls — triggers DOS-001 in files that don't already match MESSAGES_PUSH_PATTERN
+const COMPLETIONS_PATTERN = /\.chat\.completions\.create\s*\(\s*\{|\.messages\.create\s*\(\s*\{/i;
 
 function isCodeFile(filePath: string): boolean {
   const ext = path.extname(filePath).toLowerCase();
@@ -205,7 +207,8 @@ function extractFromCode(content: string, _filePath: string): ExtractedPrompt[] 
     TRANSCRIPTION_API_PATTERN.test(content) ||
     OCR_API_PATTERN.test(content) ||
     DOM_SOURCE_PATTERN.test(content) ||
-    MCP_PATTERN.test(content)
+    MCP_PATTERN.test(content) ||
+    COMPLETIONS_PATTERN.test(content)
   ) {
     results.push({
       text: content,

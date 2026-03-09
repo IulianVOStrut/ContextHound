@@ -1,6 +1,21 @@
 import type { Rule, RuleMatch } from './types.js';
 import type { ExtractedPrompt } from '../scanner/extractor.js';
 
+function matchPattern(prompt: ExtractedPrompt, pattern: RegExp): RuleMatch[] {
+  const results: RuleMatch[] = [];
+  const lines = prompt.text.split('\n');
+  lines.forEach((line, i) => {
+    if (pattern.test(line)) {
+      results.push({
+        evidence: line.trim(),
+        lineStart: prompt.lineStart + i,
+        lineEnd: prompt.lineStart + i,
+      });
+    }
+  });
+  return results;
+}
+
 export const encodingRules: Rule[] = [
   {
     id: 'ENC-001',
@@ -76,6 +91,100 @@ export const encodingRules: Rule[] = [
       });
 
       return results;
+    },
+  },
+  {
+    id: 'ENC-003',
+    title: 'Unicode Tags block characters detected — steganographic injection risk',
+    severity: 'critical',
+    confidence: 'high',
+    category: 'injection',
+    remediation:
+      'Strip or reject all characters in the Unicode Tags block (U+E0000–U+E007F) from any externally sourced content before it enters a prompt. These invisible characters are used in active exploits to hide instructions from human reviewers while remaining readable to LLMs.',
+    check(prompt: ExtractedPrompt): RuleMatch[] {
+      // Tags block characters are in the supplementary plane; represented as
+      // surrogate pairs \uDB40\uDC00–\uDB40\uDC7F in JS strings.
+      const tagsPattern = /\uDB40[\uDC00-\uDC7F]/;
+      const results: RuleMatch[] = [];
+      const lines = prompt.text.split('\n');
+      lines.forEach((line, i) => {
+        if (tagsPattern.test(line)) {
+          results.push({
+            evidence: `[Unicode Tags block chars] ${line.trim().slice(0, 100)}`,
+            lineStart: prompt.lineStart + i,
+            lineEnd: prompt.lineStart + i,
+          });
+        }
+      });
+      return results;
+    },
+  },
+  {
+    id: 'ENC-004',
+    title: 'Consecutive zero-width character sequence — covert encoding detected',
+    severity: 'high',
+    confidence: 'high',
+    category: 'injection',
+    remediation:
+      'Remove all zero-width characters (ZWJ U+200D, ZWNJ U+200C, ZWSP U+200B) from externally sourced content. Sequences of 3 or more consecutive zero-width characters are a strong indicator of binary steganography used to smuggle hidden instructions across multi-modal inputs.',
+    check(prompt: ExtractedPrompt): RuleMatch[] {
+      // 3+ consecutive ZWJ/ZWNJ/ZWSP = steganographic bit-encoding scheme
+      const zwjSequencePattern = /[\u200B\u200C\u200D]{3,}/;
+      const results: RuleMatch[] = [];
+      const lines = prompt.text.split('\n');
+      lines.forEach((line, i) => {
+        if (zwjSequencePattern.test(line)) {
+          results.push({
+            evidence: `[ZWC sequence] ${line.trim().replace(/[\u200B\u200C\u200D]/g, '\u2022').slice(0, 100)}`,
+            lineStart: prompt.lineStart + i,
+            lineEnd: prompt.lineStart + i,
+          });
+        }
+      });
+      return results;
+    },
+  },
+  {
+    id: 'ENC-005',
+    title: 'Unicode variation selector sequence — invisible payload encoding',
+    severity: 'high',
+    confidence: 'high',
+    category: 'injection',
+    remediation:
+      'Strip Unicode variation selectors (U+FE00–U+FE0F and U+E0100–U+E01EF) from all externally sourced content. Sequences of variation selectors are used to encode arbitrary binary payloads invisibly alongside normal text.',
+    check(prompt: ExtractedPrompt): RuleMatch[] {
+      // VS1–VS16 (BMP): U+FE00–U+FE0F — sequence of 3+ is suspicious
+      const vs1to16Pattern = /[\uFE00-\uFE0F]{3,}/;
+      // VS17–VS256 (supplementary): surrogate pair \uDB40\uDD00–\uDB40\uDDEF
+      const vs17plusPattern = /(?:\uDB40[\uDD00-\uDDEF]){3,}/;
+      const results: RuleMatch[] = [];
+      const lines = prompt.text.split('\n');
+      lines.forEach((line, i) => {
+        if (vs1to16Pattern.test(line) || vs17plusPattern.test(line)) {
+          results.push({
+            evidence: `[Variation selector sequence] ${line.trim().slice(0, 100)}`,
+            lineStart: prompt.lineStart + i,
+            lineEnd: prompt.lineStart + i,
+          });
+        }
+      });
+      return results;
+    },
+  },
+  {
+    id: 'ENC-006',
+    title: 'ROT13 or Caesar cipher applied near LLM context',
+    severity: 'medium',
+    confidence: 'medium',
+    category: 'injection',
+    remediation:
+      'ROT13 and Caesar ciphers are trivially reversible and provide no security. LLMs can decode them and execute obfuscated instructions. Remove cipher encoding from prompt pipelines and validate content in plaintext before insertion.',
+    check(prompt: ExtractedPrompt): RuleMatch[] {
+      if (prompt.kind === 'raw') return [];
+      // rot13() calls, Python codecs rot_13, or charCode ±13 arithmetic
+      const pattern =
+        /rot[\s_-]?13\s*\(|codecs\.encode\s*\([^)]*['"]rot.13['"]|charCodeAt\s*\([^)]*\)\s*[+\-]\s*13\b/i;
+      return matchPattern(prompt, pattern);
     },
   },
 ];

@@ -4,7 +4,7 @@
 // Keyed by lowercase file extension.
 
 const LLM_TRIGGERS: Record<string, RegExp> = {
-  '.py':   /from openai import|import openai|from anthropic import|langchain|litellm|google\.generativeai|\.chat\.completions\.create|\.messages\.create|ChatOpenAI|ChatAnthropic/i,
+  '.py':   /from openai import|import openai|from anthropic import|langchain|litellm|google\.generativeai|\.chat\.completions\.create|\.messages\.create|ChatOpenAI|ChatAnthropic|import pickle|import torch\b/i,
   '.go':   /go-openai|openai\.NewClient|anthropic\.NewClient|"github\.com\/sashabaranov\/go-openai"/i,
   '.rs':   /async_openai|openai::Client|use openai|anthropic::Client/i,
   '.java': /ChatLanguageModel|OpenAiChatModel|AnthropicChatModel|langchain4j|spring\.ai/i,
