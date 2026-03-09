@@ -4,14 +4,14 @@
   "description": "Developer-first prompt-injection scanner for CI and local use",
   "main": "dist/cli.js",
   "bin": {
-    "hound": "./dist/cli.js"
+    "hound": "dist/cli.js"
   },
   "files": [
     "dist/"
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/IulianVOStrut/ContextHound.git"
+    "url": "git+https://github.com/IulianVOStrut/ContextHound.git"
   },
   "homepage": "https://github.com/IulianVOStrut/ContextHound#readme",
   "scripts": {
