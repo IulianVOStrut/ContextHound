@@ -31,6 +31,8 @@ const TRANSCRIPTION_API_PATTERN = /\.transcriptions\.create\s*\(|openai\.audio\.
 const OCR_API_PATTERN = /Tesseract\.createWorker\s*\(|vision\.textDetection\s*\(/i;
 // Browser DOM / URL sources — triggers INJ-011
 const DOM_SOURCE_PATTERN = /window\.location\.(?:search|hash|href)|document\.cookie\b|document\.querySelector\s*\(|document\.getElementById\s*\(/i;
+// MCP (Model Context Protocol) SDK imports — triggers MCP-001 through MCP-005
+const MCP_PATTERN = /@modelcontextprotocol\/sdk|StdioServerTransport|StdioClientTransport|SSEClientTransport|McpServer\b|CreateMessageRequestSchema/i;
 
 function isCodeFile(filePath: string): boolean {
   const ext = path.extname(filePath).toLowerCase();
@@ -202,7 +204,8 @@ function extractFromCode(content: string, _filePath: string): ExtractedPrompt[] 
     VISION_API_PATTERN.test(content) ||
     TRANSCRIPTION_API_PATTERN.test(content) ||
     OCR_API_PATTERN.test(content) ||
-    DOM_SOURCE_PATTERN.test(content)
+    DOM_SOURCE_PATTERN.test(content) ||
+    MCP_PATTERN.test(content)
   ) {
     results.push({
       text: content,

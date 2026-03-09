@@ -12,7 +12,7 @@ export interface Rule {
   title: string;
   severity: Severity;
   confidence: Confidence;
-  category: 'injection' | 'exfiltration' | 'jailbreak' | 'unsafe-tools' | 'multimodal' | 'skills' | 'agentic';
+  category: 'injection' | 'exfiltration' | 'jailbreak' | 'unsafe-tools' | 'multimodal' | 'skills' | 'agentic' | 'mcp';
   remediation: string;
   check(prompt: ExtractedPrompt, filePath: string): RuleMatch[];
 }

@@ -10,6 +10,7 @@ import { outputHandlingRules } from './outputHandling.js';
 import { multimodalRules } from './multimodal.js';
 import { skillsRules } from './skills.js';
 import { agenticRules } from './agentic.js';
+import { mcpRules } from './mcp.js';
 
 export const allRules: Rule[] = [
   ...injectionRules,
@@ -23,9 +24,10 @@ export const allRules: Rule[] = [
   ...multimodalRules,
   ...skillsRules,
   ...agenticRules,
+  ...mcpRules,
 ];
 
-export { injectionRules, exfiltrationRules, jailbreakRules, unsafeToolsRules, commandInjectionRules, ragRules, encodingRules, outputHandlingRules, multimodalRules, skillsRules, agenticRules };
+export { injectionRules, exfiltrationRules, jailbreakRules, unsafeToolsRules, commandInjectionRules, ragRules, encodingRules, outputHandlingRules, multimodalRules, skillsRules, agenticRules, mcpRules };
 export type { Rule, RuleMatch } from './types.js';
 export { calcRiskPoints, ruleToFinding } from './types.js';
 export { scoreMitigations } from './mitigation.js';

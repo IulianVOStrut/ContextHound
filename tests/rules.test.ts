@@ -1,4 +1,4 @@
-import { injectionRules, exfiltrationRules, jailbreakRules, unsafeToolsRules, commandInjectionRules, ragRules, encodingRules, outputHandlingRules, multimodalRules, skillsRules, agenticRules } from '../src/rules/index';
+import { injectionRules, exfiltrationRules, jailbreakRules, unsafeToolsRules, commandInjectionRules, ragRules, encodingRules, outputHandlingRules, multimodalRules, skillsRules, agenticRules, mcpRules } from '../src/rules/index';
 import type { ExtractedPrompt } from '../src/scanner/extractor';
 
 function makePrompt(text: string, line = 1, kind: ExtractedPrompt['kind'] = 'raw'): ExtractedPrompt {
@@ -1706,5 +1706,174 @@ describe('RAG-006: No ACL or trust-tier filter applied before retrieval', () => 
   it('does not flag non-code-block prompts', () => {
     const prompt = makePrompt('results = await qdrant.search(embedding)', 1, 'raw');
     expect(rule.check(prompt, 'rag.ts')).toHaveLength(0);
+  });
+});
+
+// ── MCP security rules ────────────────────────────────────────────────────────
+
+describe('MCP-001: Tool description injected into LLM prompt', () => {
+  const rule = mcpRules.find(r => r.id === 'MCP-001')!;
+  const mcpHeader = 'import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";\n';
+
+  it('flags tool.description interpolated into a template literal content field', () => {
+    const code = mcpHeader + [
+      'const systemContent = `You have access to: ${tool.description}`;',
+      'messages.push({ role: "system", content: systemContent });',
+    ].join('\n');
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'client.ts')).toHaveLength(1);
+  });
+
+  it('flags tool.description used directly in a messages.push call', () => {
+    const code = mcpHeader + 'messages.push({ role: "system", content: tool.description });';
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'client.ts')).toHaveLength(1);
+  });
+
+  it('flags content: tools[0].description', () => {
+    const code = mcpHeader + 'const msg = { role: "system", content: tools[0].description };';
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'client.ts')).toHaveLength(1);
+  });
+
+  it('does not flag when description is not used in LLM context', () => {
+    const code = mcpHeader + 'console.log("Tool:", tool.description);';
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'client.ts')).toHaveLength(0);
+  });
+
+  it('does not flag non-MCP files', () => {
+    const code = 'messages.push({ role: "system", content: tool.description });';
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'other.ts')).toHaveLength(0);
+  });
+
+  it('does not fire on raw kind', () => {
+    const code = mcpHeader + 'messages.push({ content: tool.description });';
+    expect(rule.check(makePrompt(code, 1, 'raw'), 'client.ts')).toHaveLength(0);
+  });
+});
+
+describe('MCP-002: Dynamic tool name or description', () => {
+  const rule = mcpRules.find(r => r.id === 'MCP-002')!;
+  const mcpHeader = 'import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";\n';
+
+  it('flags server.tool() with a variable as the first argument', () => {
+    const code = mcpHeader + 'server.tool(toolName, "Fetch data from the API", fetchHandler);';
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'server.ts')).toHaveLength(1);
+  });
+
+  it('flags server.tool() with a template literal name', () => {
+    const code = mcpHeader + 'server.tool(`${prefix}-search`, "Search documents", handler);';
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'server.ts')).toHaveLength(1);
+  });
+
+  it('does not flag server.tool() with a static string name', () => {
+    const code = mcpHeader + 'server.tool("search-docs", "Search documentation", handler);';
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'server.ts')).toHaveLength(0);
+  });
+
+  it('does not flag non-MCP files', () => {
+    const code = 'server.tool(toolName, "description", handler);';
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'other.ts')).toHaveLength(0);
+  });
+});
+
+describe('MCP-003: Sampling handler without human approval guard', () => {
+  const rule = mcpRules.find(r => r.id === 'MCP-003')!;
+  const mcpHeader = 'import { McpServer, CreateMessageRequestSchema } from "@modelcontextprotocol/sdk";\n';
+
+  it('flags setRequestHandler(CreateMessageRequestSchema) with no approval guard', () => {
+    const code = mcpHeader + [
+      'server.setRequestHandler(CreateMessageRequestSchema, async (request) => {',
+      '  const result = await openai.chat.completions.create({ messages: request.params.messages });',
+      '  return { content: [{ type: "text", text: result.choices[0].message.content }] };',
+      '});',
+    ].join('\n');
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'server.ts')).toHaveLength(1);
+  });
+
+  it('does not flag when requireHumanApproval is present', () => {
+    const code = mcpHeader + [
+      'server.setRequestHandler(CreateMessageRequestSchema, async (request) => {',
+      '  if (!requireHumanApproval(request)) throw new Error("Denied");',
+      '  return await openai.chat.completions.create({ messages: request.params.messages });',
+      '});',
+    ].join('\n');
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'server.ts')).toHaveLength(0);
+  });
+
+  it('does not flag MCP files that do not handle sampling', () => {
+    const code = mcpHeader + 'server.tool("fetch", "Fetch URL", fetchHandler);';
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'server.ts')).toHaveLength(0);
+  });
+
+  it('does not fire on raw kind', () => {
+    const code = mcpHeader + 'server.setRequestHandler(CreateMessageRequestSchema, handler);';
+    expect(rule.check(makePrompt(code, 1, 'raw'), 'server.ts')).toHaveLength(0);
+  });
+});
+
+describe('MCP-004: Transport URL constructed from variable', () => {
+  const rule = mcpRules.find(r => r.id === 'MCP-004')!;
+  const mcpHeader = 'import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";\n';
+
+  it('flags new SSEClientTransport(new URL(variable))', () => {
+    const code = mcpHeader + 'const transport = new SSEClientTransport(new URL(serverUrl));';
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'client.ts')).toHaveLength(1);
+  });
+
+  it('flags SSEClientTransport with template literal URL', () => {
+    const code = mcpHeader + 'const transport = new SSEClientTransport(new URL(`https://${host}/mcp`));';
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'client.ts')).toHaveLength(1);
+  });
+
+  it('does not flag SSEClientTransport with a static string URL', () => {
+    const code = mcpHeader + 'const transport = new SSEClientTransport(new URL("https://mcp.example.com/sse"));';
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'client.ts')).toHaveLength(0);
+  });
+
+  it('does not flag static URL even in MCP file', () => {
+    const code = mcpHeader + 'const transport = new SSEClientTransport(new URL("https://mcp.internal/sse"));';
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'client.ts')).toHaveLength(0);
+  });
+});
+
+describe('MCP-005: Stdio transport with shell:true', () => {
+  const rule = mcpRules.find(r => r.id === 'MCP-005')!;
+  const mcpHeader = 'import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";\n';
+
+  it('flags StdioClientTransport config with shell: true', () => {
+    const code = mcpHeader + [
+      'const transport = new StdioClientTransport({',
+      '  command: "python",',
+      '  args: ["server.py"],',
+      '  shell: true,',
+      '});',
+    ].join('\n');
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'client.ts')).toHaveLength(1);
+  });
+
+  it('does not flag StdioClientTransport without shell: true', () => {
+    const code = mcpHeader + [
+      'const transport = new StdioClientTransport({',
+      '  command: "python",',
+      '  args: ["server.py"],',
+      '});',
+    ].join('\n');
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'client.ts')).toHaveLength(0);
+  });
+
+  it('does not flag shell: true in non-MCP files', () => {
+    const code = 'const child = spawn("node", ["app.js"], { shell: true });';
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'other.ts')).toHaveLength(0);
+  });
+
+  it('does not flag SSE transport files (no stdio transport)', () => {
+    const code = [
+      'import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";',
+      'const cfg = { shell: true };',
+    ].join('\n');
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'client.ts')).toHaveLength(0);
+  });
+
+  it('does not fire on raw kind', () => {
+    const code = mcpHeader + 'const t = new StdioClientTransport({ shell: true });';
+    expect(rule.check(makePrompt(code, 1, 'raw'), 'client.ts')).toHaveLength(0);
   });
 });
