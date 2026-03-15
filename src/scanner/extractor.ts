@@ -2,6 +2,104 @@ import fs from 'fs';
 import path from 'path';
 import { getLLMTrigger } from './languages.js';
 
+// ── Encoding normalisation ────────────────────────────────────────────────────
+// Applied to prompt text before rule matching so that obfuscated injection
+// attempts are caught regardless of encoding layer.
+
+function iterativeUrlDecode(text: string): string {
+  let current = text;
+  for (let i = 0; i < 5; i++) {
+    try {
+      const decoded = decodeURIComponent(current);
+      if (decoded === current) break;
+      current = decoded;
+    } catch {
+      break;
+    }
+  }
+  return current;
+}
+
+function decodeOctalEscapes(text: string): string {
+  return text.replace(/\\([0-7]{3})/g, (_, oct: string) =>
+    String.fromCharCode(parseInt(oct, 8))
+  );
+}
+
+const BASE32_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+
+function tryDecodeBase32(s: string): string | null {
+  let bits = 0;
+  let value = 0;
+  let output = '';
+  for (const c of s) {
+    const idx = BASE32_CHARS.indexOf(c);
+    if (idx === -1) return null;
+    value = (value << 5) | idx;
+    bits += 5;
+    if (bits >= 8) {
+      bits -= 8;
+      const code = (value >> bits) & 0xff;
+      // Reject non-printable ASCII — avoids replacing legitimate tokens
+      if (code < 32 || code > 126) return null;
+      output += String.fromCharCode(code);
+    }
+  }
+  return output.length >= 4 ? output : null;
+}
+
+function decodeBase32Sequences(text: string): string {
+  // Match sequences of 8+ base32 characters (case-insensitive, optional padding).
+  // Use lookahead/lookbehind instead of \b so padding '=' chars don't break the boundary.
+  return text.replace(/(?<![A-Z2-7=])[A-Z2-7]{8,}={0,6}(?![A-Z2-7=])/gi, (match) => {
+    const stripped = match.replace(/=/g, '').toUpperCase();
+    const decoded = tryDecodeBase32(stripped);
+    return decoded ?? match;
+  });
+}
+
+// Maps common homoglyph vowels (Latin extended + combining) to ASCII equivalents.
+// Catches obfuscation like "1gn0re" → handled by leetspeak; this handles
+// scripts that substitute visually similar Unicode vowel letters.
+const VOWEL_HOMOGLYPHS: [RegExp, string][] = [
+  [/[àáâãäåāăąǎȁȃȧæ]/gi, 'a'],
+  [/[èéêëēĕėęěȅȇ]/gi, 'e'],
+  [/[ìíîïīĭįǐȉȋ]/gi, 'i'],
+  [/[òóôõöøōŏőǒȍȏ]/gi, 'o'],
+  [/[ùúûüūŭůűǔȕȗ]/gi, 'u'],
+];
+
+function foldVowelHomoglyphs(text: string): string {
+  let result = text;
+  for (const [pattern, replacement] of VOWEL_HOMOGLYPHS) {
+    result = result.replace(pattern, (m) =>
+      m === m.toUpperCase() ? replacement.toUpperCase() : replacement
+    );
+  }
+  return result;
+}
+
+/**
+ * Normalises prompt text through four successive decoding passes so that
+ * rules match obfuscated injection content as well as plaintext.
+ *
+ * Passes (order matters):
+ *  1. Iterative URL decode   — catches %xx and double-encoded %25xx
+ *  2. Octal escape decode    — catches \151\147\156\157\162\145 → "ignore"
+ *  3. Base32 decode          — catches base32-encoded instruction strings
+ *  4. Vowel homoglyph fold   — normalises visually substituted vowel characters
+ *
+ * Not applied to code-block prompts (full source files) to avoid mangling code.
+ */
+export function normalise(text: string): string {
+  let t = text;
+  t = iterativeUrlDecode(t);
+  t = decodeOctalEscapes(t);
+  t = decodeBase32Sequences(t);
+  t = foldVowelHomoglyphs(t);
+  return t;
+}
+
 export interface ExtractedPrompt {
   text: string;
   lineStart: number;
@@ -59,8 +157,10 @@ export function extractPrompts(filePath: string): ExtractedPrompt[] {
     return [];
   }
 
+  let results: ExtractedPrompt[];
+
   if (isRawPromptFile(filePath)) {
-    const rawResults = extractFromRaw(content);
+    results = extractFromRaw(content);
     // OpenClaw skill files: also emit the full file as code-block so multi-line
     // SKL rules (SKL-004 whole-file frontmatter checks, etc.) fire correctly.
     const base = path.basename(filePath).toLowerCase();
@@ -72,21 +172,22 @@ export function extractPrompts(filePath: string): ExtractedPrompt[] {
       norm.includes('clawhub');
     if (isSkillMd) {
       const lines = content.split('\n');
-      rawResults.push({ text: content, lineStart: 1, lineEnd: lines.length, kind: 'code-block' });
+      results.push({ text: content, lineStart: 1, lineEnd: lines.length, kind: 'code-block' });
     }
-    return rawResults;
+  } else if (filePath.endsWith('.json') || filePath.endsWith('.yaml') || filePath.endsWith('.yml')) {
+    results = extractFromStructured(content);
+  } else if (isCodeFile(filePath)) {
+    results = extractFromCode(content, filePath);
+  } else {
+    results = extractFromRaw(content);
   }
 
-  if (filePath.endsWith('.json') || filePath.endsWith('.yaml') || filePath.endsWith('.yml')) {
-    return extractFromStructured(content);
-  }
-
-  if (isCodeFile(filePath)) {
-    return extractFromCode(content, filePath);
-  }
-
-  // For other text files, treat as raw
-  return extractFromRaw(content);
+  // Apply encoding normalisation to all non-code-block prompts.
+  // code-block prompts are full source files — normalising them would mangle
+  // code syntax and produce false positives in code-aware rules.
+  return results.map(p =>
+    p.kind === 'code-block' ? p : { ...p, text: normalise(p.text) }
+  );
 }
 
 function extractFromRaw(content: string): ExtractedPrompt[] {
