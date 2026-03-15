@@ -13,6 +13,7 @@ export interface Rule {
   severity: Severity;
   confidence: Confidence;
   category: 'injection' | 'exfiltration' | 'jailbreak' | 'unsafe-tools' | 'multimodal' | 'skills' | 'agentic' | 'mcp' | 'supply-chain' | 'dos' | 'persistence';
+  mitre?: string;
   remediation: string;
   check(prompt: ExtractedPrompt, filePath: string): RuleMatch[];
 }
@@ -46,5 +47,6 @@ export function ruleToFinding(rule: Rule, match: RuleMatch, filePath: string): F
     lineEnd: match.lineEnd,
     remediation: rule.remediation,
     riskPoints: calcRiskPoints(rule.severity, rule.confidence),
+    ...(rule.mitre !== undefined && { mitre: rule.mitre }),
   };
 }

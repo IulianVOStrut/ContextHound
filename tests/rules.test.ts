@@ -1,6 +1,7 @@
-import { injectionRules, exfiltrationRules, jailbreakRules, unsafeToolsRules, commandInjectionRules, ragRules, encodingRules, outputHandlingRules, multimodalRules, skillsRules, agenticRules, mcpRules, supplyChainRules, dosRules, persistenceRules } from '../src/rules/index';
+import { injectionRules, exfiltrationRules, jailbreakRules, unsafeToolsRules, commandInjectionRules, ragRules, encodingRules, outputHandlingRules, multimodalRules, skillsRules, agenticRules, mcpRules, supplyChainRules, dosRules, persistenceRules, allRules } from '../src/rules/index';
 import type { ExtractedPrompt } from '../src/scanner/extractor';
 import { normalise } from '../src/scanner/extractor';
+import { ruleToFinding } from '../src/rules/types';
 
 function makePrompt(text: string, line = 1, kind: ExtractedPrompt['kind'] = 'raw'): ExtractedPrompt {
   return { text, lineStart: line, lineEnd: line + text.split('\n').length - 1, kind };
@@ -3257,5 +3258,170 @@ describe('normalise: pipeline (combined passes)', () => {
   it('returns plain text unchanged through all passes', () => {
     const plain = 'You are a helpful assistant. Answer questions honestly.';
     expect(normalise(plain)).toBe(plain);
+  });
+});
+
+// ── MITRE ATT&CK tagging ─────────────────────────────────────────────────────
+
+describe('MITRE ATT&CK tagging', () => {
+  const MITRE_ID_PATTERN = /^T\d{4}(\.\d{3})?$/;
+
+  it('all rules with a mitre field have a valid Txxxx or Txxxx.yyy format', () => {
+    const invalid = allRules
+      .filter(r => r.mitre !== undefined)
+      .filter(r => !MITRE_ID_PATTERN.test(r.mitre!));
+    expect(invalid.map(r => `${r.id}: ${r.mitre}`)).toEqual([]);
+  });
+
+  it('ruleToFinding passes mitre field through to the finding', () => {
+    const rule = allRules.find(r => r.mitre !== undefined)!;
+    const match = { evidence: 'test evidence', lineStart: 1, lineEnd: 1 };
+    const finding = ruleToFinding(rule, match, 'test.ts');
+    expect(finding.mitre).toBe(rule.mitre);
+  });
+
+  it('ruleToFinding omits mitre key when rule has no mitre field', () => {
+    const rule = allRules.find(r => r.mitre === undefined)!;
+    const match = { evidence: 'test evidence', lineStart: 1, lineEnd: 1 };
+    const finding = ruleToFinding(rule, match, 'test.ts');
+    expect('mitre' in finding).toBe(false);
+  });
+
+  it('INJ-001 is tagged T1190', () => {
+    const rule = injectionRules.find(r => r.id === 'INJ-001')!;
+    expect(rule.mitre).toBe('T1190');
+  });
+
+  it('EXF-001 is tagged T1552', () => {
+    const rule = exfiltrationRules.find(r => r.id === 'EXF-001')!;
+    expect(rule.mitre).toBe('T1552');
+  });
+
+  it('EXF-002 is tagged T1213', () => {
+    const rule = exfiltrationRules.find(r => r.id === 'EXF-002')!;
+    expect(rule.mitre).toBe('T1213');
+  });
+
+  it('JBK-001 is tagged T1562', () => {
+    const rule = jailbreakRules.find(r => r.id === 'JBK-001')!;
+    expect(rule.mitre).toBe('T1562');
+  });
+
+  it('JBK-004 is tagged T1548', () => {
+    const rule = jailbreakRules.find(r => r.id === 'JBK-004')!;
+    expect(rule.mitre).toBe('T1548');
+  });
+
+  it('JBK-005 is tagged T1070', () => {
+    const rule = jailbreakRules.find(r => r.id === 'JBK-005')!;
+    expect(rule.mitre).toBe('T1070');
+  });
+
+  it('CMD-001 is tagged T1059', () => {
+    const rule = commandInjectionRules.find(r => r.id === 'CMD-001')!;
+    expect(rule.mitre).toBe('T1059');
+  });
+
+  it('CMD-006 is tagged T1059.004 (Unix Shell reverse shell)', () => {
+    const rule = commandInjectionRules.find(r => r.id === 'CMD-006')!;
+    expect(rule.mitre).toBe('T1059.004');
+  });
+
+  it('CMD-007 is tagged T1059.004 (named pipe reverse shell)', () => {
+    const rule = commandInjectionRules.find(r => r.id === 'CMD-007')!;
+    expect(rule.mitre).toBe('T1059.004');
+  });
+
+  it('CMD-008 is tagged T1059.004 (netcat shell spawn)', () => {
+    const rule = commandInjectionRules.find(r => r.id === 'CMD-008')!;
+    expect(rule.mitre).toBe('T1059.004');
+  });
+
+  it('ENC-001 through ENC-006 are all tagged T1027', () => {
+    const encIds = ['ENC-001', 'ENC-002', 'ENC-003', 'ENC-004', 'ENC-005', 'ENC-006'];
+    for (const id of encIds) {
+      const rule = encodingRules.find(r => r.id === id)!;
+      expect(rule.mitre).toBe('T1027');
+    }
+  });
+
+  it('SCH-001 is tagged T1195.001 (supply chain: binary)', () => {
+    const rule = supplyChainRules.find(r => r.id === 'SCH-001')!;
+    expect(rule.mitre).toBe('T1195.001');
+  });
+
+  it('SCH-004 is tagged T1195.002 (safety ablation package)', () => {
+    const rule = supplyChainRules.find(r => r.id === 'SCH-004')!;
+    expect(rule.mitre).toBe('T1195.002');
+  });
+
+  it('PST-001 is tagged T1053.003 (cron)', () => {
+    const rule = persistenceRules.find(r => r.id === 'PST-001')!;
+    expect(rule.mitre).toBe('T1053.003');
+  });
+
+  it('PST-002 is tagged T1543.002 (systemd service)', () => {
+    const rule = persistenceRules.find(r => r.id === 'PST-002')!;
+    expect(rule.mitre).toBe('T1543.002');
+  });
+
+  it('PST-003 is tagged T1543.004 (macOS LaunchDaemon)', () => {
+    const rule = persistenceRules.find(r => r.id === 'PST-003')!;
+    expect(rule.mitre).toBe('T1543.004');
+  });
+
+  it('PST-004 is tagged T1546.004 (Unix shell config modification)', () => {
+    const rule = persistenceRules.find(r => r.id === 'PST-004')!;
+    expect(rule.mitre).toBe('T1546.004');
+  });
+
+  it('PST-005 is tagged T1070.003 (clear command history)', () => {
+    const rule = persistenceRules.find(r => r.id === 'PST-005')!;
+    expect(rule.mitre).toBe('T1070.003');
+  });
+
+  it('PST-006 is tagged T1070.002 (clear Linux/Mac logs)', () => {
+    const rule = persistenceRules.find(r => r.id === 'PST-006')!;
+    expect(rule.mitre).toBe('T1070.002');
+  });
+
+  it('PST-007 is tagged T1070 (indicator removal)', () => {
+    const rule = persistenceRules.find(r => r.id === 'PST-007')!;
+    expect(rule.mitre).toBe('T1070');
+  });
+
+  it('PST-008 is tagged T1202 (indirect command execution)', () => {
+    const rule = persistenceRules.find(r => r.id === 'PST-008')!;
+    expect(rule.mitre).toBe('T1202');
+  });
+
+  it('AGT-005 is tagged T1078 (valid accounts / identity spoofing)', () => {
+    const rule = agenticRules.find(r => r.id === 'AGT-005')!;
+    expect(rule.mitre).toBe('T1078');
+  });
+
+  it('AGT-008 is tagged T1548 (IAM privilege escalation)', () => {
+    const rule = agenticRules.find(r => r.id === 'AGT-008')!;
+    expect(rule.mitre).toBe('T1548');
+  });
+
+  it('MCP-001 is tagged T1190 (prompt injection via tool description)', () => {
+    const rule = mcpRules.find(r => r.id === 'MCP-001')!;
+    expect(rule.mitre).toBe('T1190');
+  });
+
+  it('MCP-006 is tagged T1550 (confused deputy / auth token forwarding)', () => {
+    const rule = mcpRules.find(r => r.id === 'MCP-006')!;
+    expect(rule.mitre).toBe('T1550');
+  });
+
+  it('DOS-001 is tagged T1499 (endpoint denial of service)', () => {
+    const rule = dosRules.find(r => r.id === 'DOS-001')!;
+    expect(rule.mitre).toBe('T1499');
+  });
+
+  it('at least 60 rules carry a mitre tag', () => {
+    const tagged = allRules.filter(r => r.mitre !== undefined);
+    expect(tagged.length).toBeGreaterThanOrEqual(60);
   });
 });

@@ -23,6 +23,7 @@ export const encodingRules: Rule[] = [
     severity: 'medium',
     confidence: 'medium',
     category: 'injection',
+    mitre: 'T1027',
     remediation:
       'Never use Base64 encoding to sanitise user input before inserting it into a prompt. LLMs can decode Base64 and may execute embedded instructions. Validate and delimit input as plaintext instead.',
     check(prompt: ExtractedPrompt): RuleMatch[] {
@@ -67,6 +68,7 @@ export const encodingRules: Rule[] = [
     severity: 'high',
     confidence: 'high',
     category: 'injection',
+    mitre: 'T1027',
     remediation:
       'Remove all invisible Unicode control characters (zero-width spaces, bidi overrides) from prompt source files. Add a Unicode normalization step to your ingestion pipeline and reject content containing unexpected control characters.',
     check(prompt: ExtractedPrompt): RuleMatch[] {
@@ -99,6 +101,7 @@ export const encodingRules: Rule[] = [
     severity: 'critical',
     confidence: 'high',
     category: 'injection',
+    mitre: 'T1027',
     remediation:
       'Strip or reject all characters in the Unicode Tags block (U+E0000–U+E007F) from any externally sourced content before it enters a prompt. These invisible characters are used in active exploits to hide instructions from human reviewers while remaining readable to LLMs.',
     check(prompt: ExtractedPrompt): RuleMatch[] {
@@ -125,6 +128,7 @@ export const encodingRules: Rule[] = [
     severity: 'high',
     confidence: 'high',
     category: 'injection',
+    mitre: 'T1027',
     remediation:
       'Remove all zero-width characters (ZWJ U+200D, ZWNJ U+200C, ZWSP U+200B) from externally sourced content. Sequences of 3 or more consecutive zero-width characters are a strong indicator of binary steganography used to smuggle hidden instructions across multi-modal inputs.',
     check(prompt: ExtractedPrompt): RuleMatch[] {
@@ -150,6 +154,7 @@ export const encodingRules: Rule[] = [
     severity: 'high',
     confidence: 'high',
     category: 'injection',
+    mitre: 'T1027',
     remediation:
       'Strip Unicode variation selectors (U+FE00–U+FE0F and U+E0100–U+E01EF) from all externally sourced content. Sequences of variation selectors are used to encode arbitrary binary payloads invisibly alongside normal text.',
     check(prompt: ExtractedPrompt): RuleMatch[] {
@@ -177,6 +182,7 @@ export const encodingRules: Rule[] = [
     severity: 'medium',
     confidence: 'medium',
     category: 'injection',
+    mitre: 'T1027',
     remediation:
       'ROT13 and Caesar ciphers are trivially reversible and provide no security. LLMs can decode them and execute obfuscated instructions. Remove cipher encoding from prompt pipelines and validate content in plaintext before insertion.',
     check(prompt: ExtractedPrompt): RuleMatch[] {

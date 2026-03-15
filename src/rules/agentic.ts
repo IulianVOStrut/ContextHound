@@ -106,6 +106,7 @@ export const agenticRules: Rule[] = [
     severity: 'critical',
     confidence: 'medium',
     category: 'agentic',
+    mitre: 'T1078',
     remediation:
       'Never grant elevated trust based solely on a message field claiming to be from a specific agent (agentId, sender, source, from_agent). Any agent can forge these fields. Verify inter-agent messages with HMAC signatures, JWT tokens, or a shared secret before acting on claimed identity.',
     check(prompt: ExtractedPrompt): RuleMatch[] {
@@ -144,6 +145,7 @@ export const agenticRules: Rule[] = [
     severity: 'critical',
     confidence: 'high',
     category: 'agentic',
+    mitre: 'T1546',
     remediation:
       'An agent should never overwrite its own system prompt, instructions, or tools with LLM-generated content. This is a self-modification attack vector — a malicious prompt can permanently alter agent behaviour for all subsequent interactions. Keep agent configuration immutable at runtime.',
     check(prompt: ExtractedPrompt): RuleMatch[] {
@@ -177,6 +179,7 @@ export const agenticRules: Rule[] = [
     severity: 'critical',
     confidence: 'medium',
     category: 'agentic',
+    mitre: 'T1548',
     remediation:
       'Never call IAM, RBAC, or credential-assignment functions with values derived from LLM output. A prompt injection or jailbreak can escalate the agent\'s own privileges by inducing it to call assumeRole, grantAccess, or setPermissions with an attacker-chosen role ARN or permission set. Resolve permitted roles from a static allowlist in your application code, never from model responses.',
     check(prompt: ExtractedPrompt): RuleMatch[] {
@@ -209,6 +212,7 @@ export const agenticRules: Rule[] = [
     severity: 'high',
     confidence: 'medium',
     category: 'agentic',
+    mitre: 'T1059',
     remediation:
       'Never load tools, plugins, or modules at runtime from user-controlled values, LLM-generated paths, or dynamic imports without an explicit allowlist. An attacker who can influence the loaded path or URL can substitute a malicious binary or script for a legitimate tool. Resolve tool implementations from a trusted, static registry at startup.',
     check(prompt: ExtractedPrompt): RuleMatch[] {
@@ -226,6 +230,7 @@ export const agenticRules: Rule[] = [
     severity: 'high',
     confidence: 'medium',
     category: 'agentic',
+    mitre: 'T1190',
     remediation:
       'Never pass one agent\'s raw output directly as the instruction payload to another agent or message bus without signing or schema validation. In multi-agent pipelines, a compromised upstream agent can inject instructions into every downstream agent that receives its output. Validate, sanitise, and schema-check inter-agent messages at each hop.',
     check(prompt: ExtractedPrompt): RuleMatch[] {

@@ -23,6 +23,7 @@ export const jailbreakRules: Rule[] = [
     severity: 'critical',
     confidence: 'high',
     category: 'jailbreak',
+    mitre: 'T1562',
     remediation: 'Remove jailbreak phrases from prompts. If testing robustness, use the attacks/ folder instead.',
     check(prompt: ExtractedPrompt): RuleMatch[] {
       const pattern = /(?:ignore (all |previous |prior |above )?instructions?|developer mode|DAN[^a-z]|do anything now|jailbreak|pretend you (have no|are not|don't have)|act as if you have no (limits|restrictions?)|disregard (all |your |previous |the )?(?:instructions?|guidelines?|rules?|constraints?|policies?))/i;
@@ -35,6 +36,7 @@ export const jailbreakRules: Rule[] = [
     severity: 'high',
     confidence: 'medium',
     category: 'jailbreak',
+    mitre: 'T1562',
     remediation: 'Replace weak directives ("always comply", "must answer") with bounded instructions that include explicit refusal conditions.',
     check(prompt: ExtractedPrompt): RuleMatch[] {
       const pattern = /(?:always comply|must (always )?answer|no matter what|at all costs|under (any|all) circumstances|never (refuse|decline|say no)|you (cannot|can't|must not) (refuse|decline)|comply with (all|every|any) request)/i;
@@ -57,6 +59,7 @@ export const jailbreakRules: Rule[] = [
     severity: 'high',
     confidence: 'medium',
     category: 'jailbreak',
+    mitre: 'T1562',
     remediation: 'If role-play is needed, explicitly state: "Even in role-play, you must not violate these guidelines."',
     check(prompt: ExtractedPrompt): RuleMatch[] {
       const pattern = /(?:pretend (you are|to be) (a|an) (?!assistant|helpful|AI).{0,40}(?:with no (limit|restriction|filter)|uncensored|unfiltered)|in this (scenario|story|game|simulation) you (can|may|are allowed to) (do|say|reveal) anything)/i;
@@ -69,6 +72,7 @@ export const jailbreakRules: Rule[] = [
     severity: 'high',
     confidence: 'medium',
     category: 'jailbreak',
+    mitre: 'T1548',
     remediation:
       'Require explicit user confirmation for sensitive or irreversible actions. Remove language that disables human-in-the-loop review. Implement step-up authorisation for destructive tool calls.',
     check(prompt: ExtractedPrompt): RuleMatch[] {
@@ -83,6 +87,7 @@ export const jailbreakRules: Rule[] = [
     severity: 'high',
     confidence: 'high',
     category: 'jailbreak',
+    mitre: 'T1070',
     remediation:
       'Remove any instruction that directs the model to delete logs, erase history, or conceal activity. Logging and audit trails must be enforced at the infrastructure level, not negotiable via prompt.',
     check(prompt: ExtractedPrompt): RuleMatch[] {
@@ -97,6 +102,7 @@ export const jailbreakRules: Rule[] = [
     severity: 'high',
     confidence: 'medium',
     category: 'jailbreak',
+    mitre: 'T1562',
     remediation:
       'Legitimacy-framing phrases ("bug bounty", "authorized penetration tester") do not change what the model is actually being asked to do. Enforce safety constraints regardless of claimed role. Policy compliance must be handled at the API/middleware level, not via the prompt.',
     check(prompt: ExtractedPrompt): RuleMatch[] {
@@ -116,6 +122,7 @@ export const jailbreakRules: Rule[] = [
     severity: 'high',
     confidence: 'high',
     category: 'jailbreak',
+    mitre: 'T1562',
     remediation:
       'Remove instructions that claim the model is a different AI system (GPT-4, Gemini, etc.) combined with directives to ignore guidelines or safety training. Model identity cannot be changed via prompt.',
     check(prompt: ExtractedPrompt): RuleMatch[] {
@@ -134,6 +141,7 @@ export const jailbreakRules: Rule[] = [
     severity: 'high',
     confidence: 'medium',
     category: 'jailbreak',
+    mitre: 'T1562',
     remediation:
       'Do not accept instructions to compress, summarise, or shorten the system prompt. System instructions must be transmitted intact; compression requests are a social-engineering vector.',
     check(prompt: ExtractedPrompt): RuleMatch[] {
@@ -148,6 +156,7 @@ export const jailbreakRules: Rule[] = [
     severity: 'high',
     confidence: 'medium',
     category: 'jailbreak',
+    mitre: 'T1562',
     remediation:
       'Treat any content wrapped in "safe/harmless summary/translation/example" framing as potentially injected instructions. Apply the same trust-boundary rules regardless of the declared framing.',
     check(prompt: ExtractedPrompt): RuleMatch[] {
@@ -162,6 +171,7 @@ export const jailbreakRules: Rule[] = [
     severity: 'critical',
     confidence: 'high',
     category: 'jailbreak',
+    mitre: 'T1562',
     remediation:
       'Remove any activation keywords that claim to switch the model into an unrestricted operating mode. Strings such as GODMODE, LIBERTAS FACTOR, and RESET_CORTEX are social-engineering tokens with no legitimate use in production system prompts.',
     check(prompt: ExtractedPrompt): RuleMatch[] {
@@ -178,6 +188,7 @@ export const jailbreakRules: Rule[] = [
     severity: 'high',
     confidence: 'high',
     category: 'jailbreak',
+    mitre: 'T1562',
     remediation:
       'Remove any phrasing that frames prior system instructions as outdated, deprecated, or no longer in force. Attackers use soft-dismissal language to erode guideline authority without triggering direct-override detectors.',
     check(prompt: ExtractedPrompt): RuleMatch[] {
@@ -192,6 +203,7 @@ export const jailbreakRules: Rule[] = [
     severity: 'high',
     confidence: 'high',
     category: 'jailbreak',
+    mitre: 'T1562',
     remediation:
       'Remove any instruction that repositions user or external input as having higher authority than the system prompt. Trust hierarchy must be enforced at the infrastructure level and is not negotiable via prompt content.',
     check(prompt: ExtractedPrompt): RuleMatch[] {
@@ -206,6 +218,7 @@ export const jailbreakRules: Rule[] = [
     severity: 'high',
     confidence: 'high',
     category: 'jailbreak',
+    mitre: 'T1562',
     remediation:
       'Remove any instruction that declares the model\'s safety training, alignment constraints, or prior context null, overridden, or cancelled. Safety properties are not runtime state and cannot be voided via prompt.',
     check(prompt: ExtractedPrompt): RuleMatch[] {

@@ -23,6 +23,7 @@ export const supplyChainRules: Rule[] = [
     severity: 'critical',
     confidence: 'high',
     category: 'supply-chain',
+    mitre: 'T1195.001',
     remediation:
       'Never deserialize untrusted data with pickle.load() or pickle.loads() — they execute arbitrary Python code on load. For PyTorch model weights use torch.load(..., weights_only=True) (PyTorch ≥ 1.13). Prefer safe serialization formats (safetensors, ONNX, JSON) for any model artefact sourced externally.',
     check(prompt: ExtractedPrompt): RuleMatch[] {
@@ -70,6 +71,7 @@ export const supplyChainRules: Rule[] = [
     severity: 'critical',
     confidence: 'high',
     category: 'supply-chain',
+    mitre: 'T1195.002',
     remediation:
       'Remove packages designed to ablate or remove model safety training from dependency files. These tools modify model weights to strip refusal behaviour, producing models with no safety guarantees. They have no legitimate use in production AI systems.',
     check(prompt: ExtractedPrompt): RuleMatch[] {
@@ -85,6 +87,7 @@ export const supplyChainRules: Rule[] = [
     severity: 'critical',
     confidence: 'high',
     category: 'supply-chain',
+    mitre: 'T1195.002',
     remediation:
       'Remove scripts that strip, retrain, or fine-tune out model refusal behaviour. These scripts produce uncensored model variants with no content safety and must not be present in production AI pipelines.',
     check(prompt: ExtractedPrompt): RuleMatch[] {
@@ -100,6 +103,7 @@ export const supplyChainRules: Rule[] = [
     severity: 'critical',
     confidence: 'high',
     category: 'supply-chain',
+    mitre: 'T1195.002',
     remediation:
       'Remove any pip, uv, or npm install command that references model-censorship bypass packages. The presence of such install commands in scripts, Dockerfiles, or CI pipelines indicates the build process may produce unsafe model artefacts.',
     check(prompt: ExtractedPrompt): RuleMatch[] {
@@ -114,6 +118,7 @@ export const supplyChainRules: Rule[] = [
     severity: 'critical',
     confidence: 'high',
     category: 'supply-chain',
+    mitre: 'T1195.001',
     remediation:
       'The langchain.load.loads() and load() functions deserialize arbitrary Python objects by default (CVE-2025-68664, LangGrinch). Always pass an explicit allowed_objects or valid_namespaces allowlist: loads(data, valid_namespaces=["langchain"]). Never deserialize langchain objects from untrusted sources without an allowlist.',
     check(prompt: ExtractedPrompt): RuleMatch[] {

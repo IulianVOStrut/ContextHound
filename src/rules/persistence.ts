@@ -23,6 +23,7 @@ export const persistenceRules: Rule[] = [
     severity: 'critical',
     confidence: 'high',
     category: 'persistence',
+    mitre: 'T1053.003',
     remediation:
       'Remove any prompt instruction or code that edits crontabs or writes to /etc/cron.d or /var/spool/cron. LLM agents must not be permitted to schedule persistent tasks. All cron changes require explicit human authorisation outside of the AI pipeline.',
     check(prompt: ExtractedPrompt): RuleMatch[] {
@@ -37,6 +38,7 @@ export const persistenceRules: Rule[] = [
     severity: 'critical',
     confidence: 'high',
     category: 'persistence',
+    mitre: 'T1543.002',
     remediation:
       'Remove any prompt instruction or code that enables systemd units or writes service files to /etc/systemd or /lib/systemd. Registering a persistent service is an irreversible host-level change that must not be performed by an LLM agent without explicit human authorisation.',
     check(prompt: ExtractedPrompt): RuleMatch[] {
@@ -51,6 +53,7 @@ export const persistenceRules: Rule[] = [
     severity: 'high',
     confidence: 'high',
     category: 'persistence',
+    mitre: 'T1543.004',
     remediation:
       'Remove any prompt instruction or code that writes plist files to /Library/LaunchDaemons or /Library/LaunchAgents, or that calls launchctl load. These operations register persistent background services on macOS and must not be performed by an LLM agent.',
     check(prompt: ExtractedPrompt): RuleMatch[] {
@@ -65,6 +68,7 @@ export const persistenceRules: Rule[] = [
     severity: 'high',
     confidence: 'high',
     category: 'persistence',
+    mitre: 'T1546.004',
     remediation:
       'Remove any prompt instruction or code that appends to or overwrites shell initialisation files (.bashrc, .zshrc, .profile, /etc/profile). Modifying shell profiles establishes persistence across all future terminal sessions and must not be performed by an LLM agent.',
     check(prompt: ExtractedPrompt): RuleMatch[] {
@@ -79,6 +83,7 @@ export const persistenceRules: Rule[] = [
     severity: 'high',
     confidence: 'high',
     category: 'persistence',
+    mitre: 'T1070.003',
     remediation:
       'Remove any prompt instruction or code that clears shell history or sets HISTFILE to /dev/null. These commands destroy the audit trail of commands run during an agent session and are a strong indicator of malicious post-compromise cover-up.',
     check(prompt: ExtractedPrompt): RuleMatch[] {
@@ -93,6 +98,7 @@ export const persistenceRules: Rule[] = [
     severity: 'high',
     confidence: 'high',
     category: 'persistence',
+    mitre: 'T1070.002',
     remediation:
       'Remove any prompt instruction or code that truncates, shreds, or removes files under /var/log. Destroying log files is a defence-evasion technique used to remove evidence of malicious activity after a compromise.',
     check(prompt: ExtractedPrompt): RuleMatch[] {
@@ -107,6 +113,7 @@ export const persistenceRules: Rule[] = [
     severity: 'high',
     confidence: 'medium',
     category: 'persistence',
+    mitre: 'T1070',
     remediation:
       'Remove instructions that redirect both stdout and stderr of network or file-transfer commands to /dev/null. Suppressing all output from curl, wget, or netcat hides network exfiltration or implant download activity from any monitoring that relies on process output.',
     check(prompt: ExtractedPrompt): RuleMatch[] {
@@ -122,6 +129,7 @@ export const persistenceRules: Rule[] = [
     severity: 'medium',
     confidence: 'medium',
     category: 'persistence',
+    mitre: 'T1202',
     remediation:
       'Remove any prompt instruction or code that uses nohup, disown, setsid, screen -dm, or tmux new-session -d to launch background processes. Detached processes survive the parent shell session and are used to keep backdoors or exfiltration tasks running after an agent exits.',
     check(prompt: ExtractedPrompt): RuleMatch[] {

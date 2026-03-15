@@ -8,6 +8,7 @@ export const dosRules: Rule[] = [
     severity: 'medium',
     confidence: 'medium',
     category: 'dos',
+    mitre: 'T1499',
     remediation:
       'Always set max_tokens (OpenAI/Anthropic) or max_new_tokens (HuggingFace) on every LLM completion call. Without a limit, an attacker can use ThinkTrap or reasoning-inflation prompts to force the model to generate arbitrarily long outputs, exhausting your token budget and causing runaway costs.',
     check(prompt: ExtractedPrompt): RuleMatch[] {

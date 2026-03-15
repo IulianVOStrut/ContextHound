@@ -24,6 +24,7 @@ export const commandInjectionRules: Rule[] = [
     severity: 'critical',
     confidence: 'high',
     category: 'injection',
+    mitre: 'T1059',
     remediation:
       'Never interpolate variables directly into shell command strings. Use an array-based spawn API (e.g. child_process.spawn with an args array) so the shell never sees the variable as part of the command string.',
     check(prompt: ExtractedPrompt): RuleMatch[] {
@@ -128,6 +129,7 @@ export const commandInjectionRules: Rule[] = [
     severity: 'high',
     confidence: 'high',
     category: 'injection',
+    mitre: 'T1059',
     remediation:
       'Block all forms of command substitution: $(), backticks, and ${ } in the same validation. Prefer an allowlist of safe command patterns over a denylist of dangerous ones.',
     check(prompt: ExtractedPrompt): RuleMatch[] {
@@ -168,6 +170,7 @@ export const commandInjectionRules: Rule[] = [
     severity: 'high',
     confidence: 'medium',
     category: 'injection',
+    mitre: 'T1059',
     remediation:
       'Sanitise or validate file paths before using them in shell commands. Use shell-quote or shlex to escape arguments, or pass paths as array arguments to spawn() to avoid shell interpretation entirely.',
     check(prompt: ExtractedPrompt): RuleMatch[] {
@@ -224,6 +227,7 @@ export const commandInjectionRules: Rule[] = [
     severity: 'critical',
     confidence: 'high',
     category: 'injection',
+    mitre: 'T1059',
     remediation:
       'Never pass shell=True to subprocess functions when the command argument is a variable. Use an argument list instead (e.g. subprocess.run(["ls", filepath])) so the shell never interprets the variable as part of the command string.',
     check(prompt: ExtractedPrompt, filePath: string): RuleMatch[] {
@@ -266,6 +270,7 @@ export const commandInjectionRules: Rule[] = [
     severity: 'critical',
     confidence: 'high',
     category: 'injection',
+    mitre: 'T1059',
     remediation:
       'Never pass user-controlled variables to PHP shell execution functions. Validate input strictly against an allowlist, use escapeshellarg() on any argument that must contain user data, or replace the shell call with a native PHP API that does not invoke a shell.',
     check(prompt: ExtractedPrompt, filePath: string): RuleMatch[] {
@@ -298,6 +303,7 @@ export const commandInjectionRules: Rule[] = [
     severity: 'critical',
     confidence: 'high',
     category: 'injection',
+    mitre: 'T1059.004',
     remediation:
       'Remove any prompt instruction or code that constructs a /dev/tcp reverse shell. Deny shell file descriptor redirects (>&, <>) in any context where user-controlled or LLM-generated content is executed. Audit system prompts for reverse-shell command strings.',
     check(prompt: ExtractedPrompt): RuleMatch[] {
@@ -312,6 +318,7 @@ export const commandInjectionRules: Rule[] = [
     severity: 'critical',
     confidence: 'high',
     category: 'injection',
+    mitre: 'T1059.004',
     remediation:
       'Remove any prompt instruction or code that combines mkfifo with a shell or netcat invocation. This pattern creates a bidirectional shell channel over a network socket and has no legitimate use in LLM-controlled execution contexts.',
     check(prompt: ExtractedPrompt): RuleMatch[] {
@@ -340,6 +347,7 @@ export const commandInjectionRules: Rule[] = [
     severity: 'critical',
     confidence: 'high',
     category: 'injection',
+    mitre: 'T1059.004',
     remediation:
       'Remove any prompt instruction or code that passes -e or --exec to nc/ncat/netcat pointing at a shell binary. The -e flag hands full shell control to the remote end of the connection and has no legitimate use in LLM agent execution contexts.',
     check(prompt: ExtractedPrompt): RuleMatch[] {

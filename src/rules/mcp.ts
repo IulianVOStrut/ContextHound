@@ -27,6 +27,7 @@ export const mcpRules: Rule[] = [
     severity: 'critical',
     confidence: 'high',
     category: 'mcp',
+    mitre: 'T1190',
     remediation:
       'Never pass raw MCP tool descriptions directly into LLM system prompts or user messages. A malicious MCP server can embed prompt injection instructions inside tool descriptions (CVE-2025-6514 pattern). Strip or allowlist-validate description content before including it in any LLM context.',
     check(prompt: ExtractedPrompt): RuleMatch[] {
@@ -48,6 +49,7 @@ export const mcpRules: Rule[] = [
     severity: 'high',
     confidence: 'medium',
     category: 'mcp',
+    mitre: 'T1195',
     remediation:
       'MCP tool names and descriptions should be static string literals. Dynamic values sourced from config, environment variables, or network responses allow a compromised source to register tools under arbitrary names or inject override instructions into descriptions after initial user approval (rug pull attack).',
     check(prompt: ExtractedPrompt): RuleMatch[] {
@@ -68,6 +70,7 @@ export const mcpRules: Rule[] = [
     severity: 'high',
     confidence: 'medium',
     category: 'mcp',
+    mitre: 'T1548',
     remediation:
       'MCP sampling requests allow a server to initiate LLM calls on behalf of the client (CVE-2025-59536). Always require explicit user approval before fulfilling sampling/createMessage requests. Add a human-in-the-loop check (e.g. prompt the user for confirmation, or set requireHumanApproval: true) before forwarding the request to an LLM provider.',
     check(prompt: ExtractedPrompt): RuleMatch[] {
@@ -102,6 +105,7 @@ export const mcpRules: Rule[] = [
     severity: 'medium',
     confidence: 'medium',
     category: 'mcp',
+    mitre: 'T1557',
     remediation:
       'MCP server URLs should be static configuration values, not dynamic strings built from user input or LLM output. Validate any server URL against a strict allowlist before connecting. A URL injected by an attacker could redirect your MCP client to a malicious server that serves poisoned tool definitions.',
     check(prompt: ExtractedPrompt): RuleMatch[] {
@@ -121,6 +125,7 @@ export const mcpRules: Rule[] = [
     severity: 'high',
     confidence: 'high',
     category: 'mcp',
+    mitre: 'T1059',
     remediation:
       'Never set shell: true in StdioClientTransport or StdioServerTransport options. With shell: true the command string is interpreted by the OS shell, making it vulnerable to injection if any part of the command or args is user-controlled. Remove shell: true and pass command and args as separate fields; the transport will spawn the process directly without shell interpretation.',
     check(prompt: ExtractedPrompt): RuleMatch[] {
@@ -142,6 +147,7 @@ export const mcpRules: Rule[] = [
     severity: 'critical',
     confidence: 'medium',
     category: 'mcp',
+    mitre: 'T1550',
     remediation:
       'Never forward an auth token received from an MCP client directly as the credential for a downstream API call. The MCP server is acting as a deputy: it must independently verify that the requesting client is authorised to use the downstream resource. Issue a fresh credential scoped to the specific request, or introspect the inbound token before forwarding.',
     check(prompt: ExtractedPrompt): RuleMatch[] {
@@ -190,6 +196,7 @@ export const mcpRules: Rule[] = [
     severity: 'high',
     confidence: 'medium',
     category: 'mcp',
+    mitre: 'T1195',
     remediation:
       'The command path for StdioClientTransport or StdioServerTransport must be a static string literal or a value resolved from a trusted, allowlisted configuration source. A path sourced from user input, an environment variable without validation, or an LLM-generated value enables an attacker to redirect the transport to a malicious binary.',
     check(prompt: ExtractedPrompt): RuleMatch[] {
@@ -231,6 +238,7 @@ export const mcpRules: Rule[] = [
     severity: 'critical',
     confidence: 'high',
     category: 'mcp',
+    mitre: 'T1190',
     remediation:
       'Validate MCP tool description fields against a content allowlist before registering them. A malicious MCP server can embed prompt injection instructions inside tool descriptions that are then forwarded to an LLM. Description fields must contain only documentation text — never imperative instruction phrases.',
     check(prompt: ExtractedPrompt): RuleMatch[] {
@@ -285,6 +293,7 @@ export const mcpRules: Rule[] = [
     severity: 'critical',
     confidence: 'medium',
     category: 'mcp',
+    mitre: 'T1190',
     remediation:
       'Never pass raw MCP transport event or message payloads directly into LLM message arrays or prompt strings. A malicious MCP server can craft event payloads that contain prompt injection instructions. Validate and sanitise event data against a strict schema before including it in any LLM context.',
     check(prompt: ExtractedPrompt): RuleMatch[] {

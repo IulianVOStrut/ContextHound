@@ -14,6 +14,7 @@ export interface Finding {
   lineEnd: number;
   remediation: string;
   riskPoints: number;
+  mitre?: string;
 }
 
 export interface FileResult {
