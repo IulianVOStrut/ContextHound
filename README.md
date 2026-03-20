@@ -18,7 +18,7 @@ ContextHound is available across your entire development and browsing workflow:
 |---|---|---|
 | **CLI / npm package** | Scans your codebase for prompt injection vulnerabilities. Integrates with GitHub Actions, outputs SARIF, JSON, HTML, and more. | `npm install -g context-hound` |
 | **VS Code extension** | Inline findings as you code, code actions, output channel, status bar. | [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=ContextHound.contexthound) |
-| **Browser extension** | Real-time scan pill on any AI chat interface, DevTools panel for LLM API traffic, popup scanner. Chrome and Firefox. | Awaiting store review — [source](https://github.com/IulianVOStrut/ContextHound-Extensions) |
+| **Browser extension** | Real-time scan pill on any AI chat interface, DevTools panel for LLM API traffic, popup scanner. Chrome and Firefox. | Firefox: [Install free](https://addons.mozilla.org/firefox/addon/contexthound/) · Chrome: awaiting review · [source](https://github.com/IulianVOStrut/ContextHound-Extensions) |
 
 ---
 
@@ -629,7 +629,7 @@ The benchmark exits with code 1 if any false positives or false negatives are fo
 
 The ContextHound browser extension brings real-time prompt injection detection to Chrome and Firefox. It uses the same rule engine as the CLI, compiled and bundled locally — no network requests, no backend.
 
-> **Status:** Submitted to Chrome Web Store and Firefox AMO. Currently awaiting store review. Source available at [github.com/IulianVOStrut/ContextHound-Extensions](https://github.com/IulianVOStrut/ContextHound-Extensions).
+> **Status:** Firefox extension is live — [install from Firefox Add-ons](https://addons.mozilla.org/firefox/addon/contexthound/). Chrome submission is awaiting Web Store review. Source available at [github.com/IulianVOStrut/ContextHound-Extensions](https://github.com/IulianVOStrut/ContextHound-Extensions).
 
 ### Features
 
