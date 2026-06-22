@@ -1,6 +1,6 @@
 import type { Finding, FileResult, ScanResult, Severity, AuditConfig, Confidence } from '../types.js';
 import type { ExtractedPrompt } from '../scanner/extractor.js';
-import { allRules, ruleToFinding, scoreMitigations } from '../rules/index.js';
+import { allRules, ruleToFinding, scoreMitigations, mitigationReductionFor } from '../rules/index.js';
 import type { Rule } from '../rules/index.js';
 
 export function scoreLabel(score: number): 'low' | 'medium' | 'high' | 'critical' {
@@ -48,8 +48,9 @@ export function analyzePrompt(
 
         const finding = ruleToFinding(rule, match, filePath);
 
-        // Apply mitigation reduction proportionally
-        const reduction = mitigation.total / 100;
+        // Apply only the mitigations relevant to this rule's category, so an
+        // unrelated guard (e.g. a tool allowlist) can't dampen this finding.
+        const reduction = mitigationReductionFor(mitigation, rule.id) / 100;
         finding.riskPoints = Math.max(1, Math.round(finding.riskPoints * (1 - reduction)));
 
         findings.push(finding);

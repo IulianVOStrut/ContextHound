@@ -149,12 +149,16 @@ function isRawPromptFile(filePath: string): boolean {
   return ['.prompt', '.txt', '.md'].includes(ext);
 }
 
-export function extractPrompts(filePath: string): ExtractedPrompt[] {
+export function extractPrompts(filePath: string, preloaded?: string): ExtractedPrompt[] {
   let content: string;
-  try {
-    content = fs.readFileSync(filePath, 'utf8');
-  } catch {
-    return [];
+  if (preloaded !== undefined) {
+    content = preloaded;
+  } else {
+    try {
+      content = fs.readFileSync(filePath, 'utf8');
+    } catch {
+      return [];
+    }
   }
 
   let results: ExtractedPrompt[];

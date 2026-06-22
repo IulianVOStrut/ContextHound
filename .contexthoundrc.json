@@ -40,6 +40,7 @@
     "**/scripts/**",
     "**/src/rules/**",
     "**/src/scanner/**",
+    "**/src/runtime/**",
     "**/src/cli.ts",
     "**/src/report/**",
     "**/tests/**",

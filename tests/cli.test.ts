@@ -273,3 +273,42 @@ module.exports = {
     expect([2, 3]).toContain(result.status);
   });
 });
+
+// ── explain command ───────────────────────────────────────────────────────────
+
+describe('explain command', () => {
+  it('explains a single rule with MITRE and remediation', () => {
+    const r = runCli(['explain', 'INJ-001']);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toMatch(/INJ-001/);
+    expect(r.stdout).toMatch(/Remediation:/);
+    expect(r.stdout).toMatch(/hound-disable-next-line INJ-001/);
+  });
+
+  it('is case-insensitive', () => {
+    const r = runCli(['explain', 'inj-001']);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toMatch(/INJ-001/);
+  });
+
+  it('matches a rule family by prefix', () => {
+    const r = runCli(['explain', 'PST']);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toMatch(/PST-001/);
+    expect(r.stdout).toMatch(/rules matched/);
+  });
+
+  it('emits JSON with --format json', () => {
+    const r = runCli(['explain', 'RAG-007', '--format', 'json']);
+    expect(r.status).toBe(0);
+    const parsed = JSON.parse(r.stdout);
+    expect(parsed[0].id).toBe('RAG-007');
+    expect(parsed[0]).toHaveProperty('remediation');
+  });
+
+  it('exits non-zero for an unknown rule', () => {
+    const r = runCli(['explain', 'ZZZ-999']);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/No rule matches/);
+  });
+});

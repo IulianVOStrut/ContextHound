@@ -7,6 +7,38 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic V
 
 ## [Unreleased]
 
+### Added
+
+- **`INJ-015` — lightweight taint analysis (JS/TS).** Follows an *arbitrarily
+  named* variable from an unambiguous untrusted source (HTTP request fields, CLI
+  args, browser URL/cookie) into a prompt sink — including one-hop aliases —
+  catching flows the name-based INJ rules miss. Conservative by design: sanitiser
+  wrappers clear taint, only prompt-like template literals are treated as sinks,
+  and variable names already covered by `INJ-001` are skipped to avoid
+  double-reporting. New `taint` rule module; 121 rules total.
+- **Inline suppression comments.** Silence a known false positive in source with
+  `hound-disable-line`, `hound-disable-next-line`, or `hound-disable` /
+  `hound-enable` block markers — recognised in any file type, optionally scoped
+  to specific rule IDs and annotated with a `-- reason`. New
+  `--report-unused-suppressions` flag lists directives that match nothing so dead
+  suppressions can be pruned. `ScanResult` gains `suppressedCount` and
+  `unusedSuppressions`.
+- **Per-rule precision/recall in the benchmark.** `npm run benchmark` now prints
+  a per-rule signal table (TP/FP/FN, precision, recall, F1; worst F1 first) so
+  low-precision rules are easy to spot, and accepts `--report <path>` to emit a
+  machine-readable JSON report for CI trend tracking. `computePerRule` is now
+  exported and unit-tested.
+- **`hound explain <RULE-ID>` command.** Prints a rule's severity, confidence,
+  category (with a plain-language description), linked MITRE ATT&CK technique,
+  remediation, and the exact suppression directive — no scan required. Accepts a
+  family prefix (e.g. `hound explain INJ`) and supports `--format json`.
+- **`--diff [ref]` changed-files mode.** Scan only files that changed vs. a git
+  ref (default `origin/main`) for fast PR gates — covers committed, staged,
+  unstaged, and untracked files, and falls back to a full scan with a warning if
+  git/the ref is unavailable. Adds `diff` to `AuditConfig`.
+- CLI `--version` now reports the correct package version (was hardcoded to an
+  old value).
+
 ### Security
 
 - Resolved all 11 Dependabot advisories (1 critical, high, moderate, low). The
@@ -18,6 +50,16 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic V
   in the published package (`files` is limited to `dist/`). All are pinned to
   patched versions via `overrides`; `npm audit` now reports 0 vulnerabilities
   with the full test suite still green.
+
+### Changed
+
+- **Mitigations are now scoped to the relevant rule.** Previously the total of
+  all detected prompt mitigations was applied as a flat reduction to *every*
+  finding, so an unrelated guard (e.g. a tool allowlist) could dampen an
+  exfiltration or command-injection finding's score. Each mitigation now
+  declares the rule categories it addresses (`appliesTo`), and only matching
+  mitigations reduce a given finding's risk. New exported
+  `mitigationReductionFor(mitigation, ruleId)`.
 
 ### Fixed
 

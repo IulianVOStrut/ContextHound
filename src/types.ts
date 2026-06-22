@@ -31,6 +31,17 @@ export interface ScanResult {
   threshold: number;
   passed: boolean;
   fileThresholdBreached?: boolean;
+  /** Number of findings silenced by inline suppression comments. */
+  suppressedCount?: number;
+  /** Suppression directives that never matched a finding (dead suppressions). */
+  unusedSuppressions?: UnusedSuppression[];
+}
+
+export interface UnusedSuppression {
+  file: string;
+  line: number;
+  ruleIds: string[] | null;
+  reason?: string;
 }
 
 export interface AuditConfig {
@@ -50,4 +61,8 @@ export interface AuditConfig {
   cache?: boolean;
   baseline?: string;
   plugins?: string[];
+  /** When true, scan only files changed vs. this git ref (PR-gate mode). */
+  diff?: string;
+  /** When true, report inline suppression directives that matched nothing. */
+  reportUnusedSuppressions?: boolean;
 }
