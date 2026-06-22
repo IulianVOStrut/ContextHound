@@ -7,6 +7,18 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic V
 
 ## [Unreleased]
 
+### Added
+
+- **Inline suppression comments.** Silence a known false positive in source with
+  `hound-disable-line`, `hound-disable-next-line`, or `hound-disable` /
+  `hound-enable` block markers — recognised in any file type, optionally scoped
+  to specific rule IDs and annotated with a `-- reason`. New
+  `--report-unused-suppressions` flag lists directives that match nothing so dead
+  suppressions can be pruned. `ScanResult` gains `suppressedCount` and
+  `unusedSuppressions`.
+- CLI `--version` now reports the correct package version (was hardcoded to an
+  old value).
+
 ### Security
 
 - Resolved all 11 Dependabot advisories (1 critical, high, moderate, low). The

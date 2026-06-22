@@ -266,6 +266,34 @@ All key settings can be overridden at runtime without editing the config file:
 
 Place a `.houndignore` file in your project root to add exclusion patterns without editing `.contexthoundrc.json`. Follows the same glob syntax; lines starting with `#` are comments.
 
+### Inline suppressions
+
+Silence a known false positive directly in the source — no need to disable a rule repo-wide. Directives are recognised in **any** file type (the surrounding comment syntax doesn't matter):
+
+```ts
+// hound-disable-next-line INJ-001 -- userInput is a validated enum
+const prompt = `Summarise the ${userInput} report`;
+
+const cmd = run(`${shell}`); // hound-disable-line CMD-001
+
+// hound-disable RAG-007 -- trusted internal corpus only
+context.push(doc.metadata.title);
+context.push(doc.metadata.author);
+// hound-enable RAG-007
+```
+
+- `hound-disable-line [RULE...]` — suppress findings on the same line
+- `hound-disable-next-line [RULE...]` — suppress findings on the following line
+- `hound-disable [RULE...]` … `hound-enable [RULE...]` — suppress a block (auto-closed at end of file)
+- Omit rule IDs to suppress **all** rules at that location; list one or more (space/comma separated) to scope it
+- Text after `--` is a free-form justification, surfaced in reports
+
+Run with `--report-unused-suppressions` to list directives that no longer match any finding, so dead suppressions can be cleaned up:
+
+```bash
+hound scan --report-unused-suppressions
+```
+
 ### Custom rule plugins
 
 Any `.js` file that exports a `Rule` or `Rule[]` can be loaded as a plugin:

@@ -21,7 +21,7 @@ const program = new Command();
 program
   .name('hound')
   .description('ContextHound: Scan LLM prompts for injection and security risks')
-  .version('1.7.0');
+  .version('2.0.0');
 
 // ── init command ─────────────────────────────────────────────────────────────
 
@@ -96,6 +96,8 @@ program
   .option('--no-cache', 'Disable incremental file cache')
   .option('--baseline <path>', 'Compare against a saved JSON report; only report new findings')
   .option('--min-confidence <level>', 'Minimum confidence level to report: low|medium|high (default: low)')
+  .option('--diff [ref]', 'Scan only files changed vs. a git ref (default: origin/main)')
+  .option('--report-unused-suppressions', 'List inline suppression comments that matched no finding')
   .action(async (opts: {
     config?: string;
     format: string;
@@ -112,6 +114,8 @@ program
     cache?: boolean;
     baseline?: string;
     minConfidence?: string;
+    diff?: string | boolean;
+    reportUnusedSuppressions?: boolean;
   }) => {
     // ── --list-rules ──────────────────────────────────────────────────────
     if (opts.listRules) {
@@ -161,6 +165,7 @@ program
       cache: opts.cache, // commander sets false for --no-cache, undefined when not passed
       baseline: opts.baseline ?? fileConfig.baseline,
       minConfidence: (opts.minConfidence as Confidence | undefined) ?? fileConfig.minConfidence,
+      reportUnusedSuppressions: opts.reportUnusedSuppressions ?? fileConfig.reportUnusedSuppressions,
     };
 
     if (config.verbose) {
@@ -200,6 +205,19 @@ program
     // Console report always prints (unless only jsonl/json/sarif requested)
     if (formats.includes('console') || formats.length === 0) {
       printConsoleReport(result, config.verbose);
+    }
+
+    // Inline-suppression summary
+    if (result.suppressedCount) {
+      console.log(`Suppressed: ${result.suppressedCount} finding(s) via inline hound-disable comments`);
+    }
+    if (config.reportUnusedSuppressions && result.unusedSuppressions?.length) {
+      console.log(`\nUnused suppressions (${result.unusedSuppressions.length}) — matched no finding:`);
+      for (const u of result.unusedSuppressions) {
+        const scope = u.ruleIds ? u.ruleIds.join(',') : 'all rules';
+        const rel = path.relative(cwd, u.file) || u.file;
+        console.log(`  ${rel}:${u.line}  [${scope}]${u.reason ? `  — ${u.reason}` : ''}`);
+      }
     }
 
     // JSON report
