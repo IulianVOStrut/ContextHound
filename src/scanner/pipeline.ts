@@ -8,6 +8,9 @@ import { analyzePrompt, scoreFile, buildScanResult } from '../scoring/index.js';
 import { allRules } from '../rules/index.js';
 import { loadCache, saveCache, getCachedFindings, setCacheEntry, computeCacheSignature } from './cache.js';
 import type { HoundCache } from './cache.js';
+import { parseSuppressions, applySuppressions } from './suppressions.js';
+import { getChangedFiles } from './gitDiff.js';
+import type { UnusedSuppression } from '../types.js';
 
 async function loadHoundIgnore(cwd: string): Promise<string[]> {
   const p = path.join(cwd, '.houndignore');
@@ -78,7 +81,17 @@ export async function runScan(
     config = { ...config, exclude: [...config.exclude, ...houndIgnorePatterns] };
   }
 
-  const files = await discoverFiles(cwd, config);
+  let files = await discoverFiles(cwd, config);
+
+  // --diff mode: restrict to files changed vs. a git ref (fast PR gate).
+  if (config.diff) {
+    const changed = getChangedFiles(cwd, config.diff);
+    if (changed) {
+      files = files.filter(f => changed.has(f));
+    } else {
+      console.warn(`Warning: could not compute git diff against '${config.diff}'; scanning all files`);
+    }
+  }
 
   // Load plugin rules
   const pluginRules = config.plugins?.length
@@ -102,49 +115,55 @@ export async function runScan(
 
   const fileResults: FileResult[] = [];
   let totalFindings = 0;
+  let totalSuppressed = 0;
+  const unusedSuppressions: UnusedSuppression[] = [];
   let aborted = false;
 
   const tasks = files.map(file =>
     limit(async () => {
       if (aborted) return;
 
-      // Cache lookup
-      if (useCache) {
-        const cached = getCachedFindings(cache, file);
-        if (cached !== null) {
-          if (cached.length > 0) {
-            if (onFinding) for (const f of cached) onFinding(f);
-            const fileScore = scoreFile(cached);
-            fileResults.push({ file, findings: cached, fileScore });
-            totalFindings += cached.length;
-            if (config.maxFindings && totalFindings >= config.maxFindings) aborted = true;
-          }
-          return;
-        }
-      }
-
-      const prompts = extractPrompts(file);
-      if (prompts.length === 0) {
-        if (useCache) setCacheEntry(cache, file, []);
+      // One read serves both suppression parsing (always) and, on a cache
+      // miss, prompt extraction. Rule execution — the expensive part — stays
+      // cached; only the file read is repeated.
+      let content: string;
+      try {
+        content = fs.readFileSync(file, 'utf8');
+      } catch {
         return;
       }
 
-      const findings = analyzePrompt(prompts, file, config, pluginRules);
+      // Raw (pre-suppression) findings, from cache when the file is unchanged.
+      let rawFindings: Finding[] | null = useCache ? getCachedFindings(cache, file) : null;
+      if (rawFindings === null) {
+        const prompts = extractPrompts(file, content);
+        rawFindings = prompts.length === 0 ? [] : analyzePrompt(prompts, file, config, pluginRules);
+        if (useCache) setCacheEntry(cache, file, rawFindings);
+      }
 
-      if (useCache) setCacheEntry(cache, file, findings);
+      // Apply inline suppression directives (hound-disable-*).
+      const directives = parseSuppressions(content);
+      const { kept, suppressedCount } = applySuppressions(rawFindings, directives);
+      totalSuppressed += suppressedCount;
+      if (config.reportUnusedSuppressions) {
+        for (const d of directives) {
+          if (!d.used) {
+            unusedSuppressions.push({ file, line: d.declaredLine, ruleIds: d.ruleIds, reason: d.reason });
+          }
+        }
+      }
 
-      if (findings.length === 0) return;
-
+      if (kept.length === 0) return;
       if (aborted) return; // recheck after CPU work
 
       if (onFinding) {
-        for (const f of findings) onFinding(f);
+        for (const f of kept) onFinding(f);
       }
 
-      const fileScore = scoreFile(findings);
-      fileResults.push({ file, findings, fileScore });
+      const fileScore = scoreFile(kept);
+      fileResults.push({ file, findings: kept, fileScore });
 
-      totalFindings += findings.length;
+      totalFindings += kept.length;
       if (config.maxFindings && totalFindings >= config.maxFindings) {
         aborted = true;
       }
@@ -159,5 +178,11 @@ export async function runScan(
   // Sort by file path for deterministic, diffable output
   fileResults.sort((a, b) => a.file.localeCompare(b.file));
 
-  return buildScanResult(fileResults, config);
+  const result = buildScanResult(fileResults, config);
+  if (totalSuppressed > 0) result.suppressedCount = totalSuppressed;
+  if (config.reportUnusedSuppressions) {
+    unusedSuppressions.sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line);
+    result.unusedSuppressions = unusedSuppressions;
+  }
+  return result;
 }

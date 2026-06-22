@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { loadConfig } from './config/loader.js';
 import { runScan } from './scanner/pipeline.js';
+import { resolveDiffRef } from './scanner/gitDiff.js';
 import { printConsoleReport } from './report/console.js';
 import { buildJsonReport } from './report/json.js';
 import { buildSarifReport } from './report/sarif.js';
@@ -21,7 +22,7 @@ const program = new Command();
 program
   .name('hound')
   .description('ContextHound: Scan LLM prompts for injection and security risks')
-  .version('1.7.0');
+  .version('2.0.0');
 
 // ── init command ─────────────────────────────────────────────────────────────
 
@@ -76,6 +77,68 @@ program
     console.log('  3. Set threshold and failOn to fit your risk tolerance');
   });
 
+// ── explain command ────────────────────────────────────────────────────────
+
+const CATEGORY_BLURB: Record<string, string> = {
+  'injection': 'Untrusted input reaching the model without isolation, letting an attacker steer the prompt.',
+  'exfiltration': 'Sensitive data (secrets, history, system prompt) leaving the trust boundary.',
+  'jailbreak': 'Attempts to override, dismiss, or void the system instructions and safety constraints.',
+  'unsafe-tools': 'Model output driving privileged tools or actions without a human/guard in the loop.',
+  'multimodal': 'Injection or data flow through image, audio, or OCR/vision inputs.',
+  'skills': 'Risks in shareable skill/agent definitions (SKILL.md, marketplaces).',
+  'agentic': 'Multi-step / multi-agent pipeline risks: unbounded loops, unsigned messages, error swallowing.',
+  'mcp': 'Model Context Protocol risks: poisoned tool descriptions, confused-deputy token forwarding, transport.',
+  'supply-chain': 'Malicious or safety-ablating dependencies entering the build.',
+  'dos': 'Resource-exhaustion / cost-amplification against the model or pipeline.',
+  'persistence': 'Footholds an attacker establishes after initial access (cron, services, profile, log tampering).',
+};
+
+function mitreUrl(mitre: string): string {
+  return `https://attack.mitre.org/techniques/${mitre.replace('.', '/')}`;
+}
+
+program
+  .command('explain <ruleId>')
+  .description('Explain a rule (or a rule family by prefix, e.g. INJ)')
+  .option('-f, --format <format>', 'Output format: console|json', 'console')
+  .action((ruleId: string, opts: { format: string }) => {
+    const q = ruleId.toUpperCase();
+    const matches = allRules.filter(r => r.id.toUpperCase() === q || r.id.toUpperCase().startsWith(q));
+    if (matches.length === 0) {
+      console.error(`No rule matches "${ruleId}". Try 'hound scan --list-rules'.`);
+      process.exit(1);
+    }
+
+    if (opts.format === 'json') {
+      console.log(JSON.stringify(matches.map(r => ({
+        id: r.id, title: r.title, severity: r.severity, confidence: r.confidence,
+        category: r.category, mitre: r.mitre ?? null,
+        mitreUrl: r.mitre ? mitreUrl(r.mitre) : null,
+        categoryDescription: CATEGORY_BLURB[r.category] ?? null,
+        remediation: r.remediation,
+      })), null, 2));
+      process.exit(0);
+    }
+
+    for (const r of matches) {
+      console.log('');
+      console.log(`${r.id} — ${r.title}`);
+      console.log('─'.repeat(Math.max(20, r.id.length + r.title.length + 3)));
+      console.log(`Severity:    ${r.severity}`);
+      console.log(`Confidence:  ${r.confidence}`);
+      console.log(`Category:    ${r.category}`);
+      if (CATEGORY_BLURB[r.category]) console.log(`             ${CATEGORY_BLURB[r.category]}`);
+      if (r.mitre) {
+        console.log(`MITRE:       ${r.mitre}  (${mitreUrl(r.mitre)})`);
+      }
+      console.log(`Remediation: ${r.remediation}`);
+      console.log(`Suppress:    // hound-disable-next-line ${r.id}`);
+    }
+    console.log('');
+    if (matches.length > 1) console.log(`${matches.length} rules matched "${ruleId}".`);
+    process.exit(0);
+  });
+
 // ── scan command ─────────────────────────────────────────────────────────────
 
 program
@@ -96,6 +159,8 @@ program
   .option('--no-cache', 'Disable incremental file cache')
   .option('--baseline <path>', 'Compare against a saved JSON report; only report new findings')
   .option('--min-confidence <level>', 'Minimum confidence level to report: low|medium|high (default: low)')
+  .option('--diff [ref]', 'Scan only files changed vs. a git ref (default: origin/main)')
+  .option('--report-unused-suppressions', 'List inline suppression comments that matched no finding')
   .action(async (opts: {
     config?: string;
     format: string;
@@ -112,6 +177,8 @@ program
     cache?: boolean;
     baseline?: string;
     minConfidence?: string;
+    diff?: string | boolean;
+    reportUnusedSuppressions?: boolean;
   }) => {
     // ── --list-rules ──────────────────────────────────────────────────────
     if (opts.listRules) {
@@ -161,6 +228,8 @@ program
       cache: opts.cache, // commander sets false for --no-cache, undefined when not passed
       baseline: opts.baseline ?? fileConfig.baseline,
       minConfidence: (opts.minConfidence as Confidence | undefined) ?? fileConfig.minConfidence,
+      reportUnusedSuppressions: opts.reportUnusedSuppressions ?? fileConfig.reportUnusedSuppressions,
+      diff: resolveDiffRef(opts.diff) ?? fileConfig.diff,
     };
 
     if (config.verbose) {
@@ -170,6 +239,7 @@ program
       if (config.cache !== false) console.log('Cache: enabled (.hound-cache.json)');
       if (config.plugins?.length) console.log(`Plugins: ${config.plugins.join(', ')}`);
       if (config.baseline) console.log(`Baseline: ${config.baseline}`);
+      if (config.diff) console.log(`Diff: changed files vs. ${config.diff}`);
     }
 
     // ── --watch mode ──────────────────────────────────────────────────────
@@ -200,6 +270,19 @@ program
     // Console report always prints (unless only jsonl/json/sarif requested)
     if (formats.includes('console') || formats.length === 0) {
       printConsoleReport(result, config.verbose);
+    }
+
+    // Inline-suppression summary
+    if (result.suppressedCount) {
+      console.log(`Suppressed: ${result.suppressedCount} finding(s) via inline hound-disable comments`);
+    }
+    if (config.reportUnusedSuppressions && result.unusedSuppressions?.length) {
+      console.log(`\nUnused suppressions (${result.unusedSuppressions.length}) — matched no finding:`);
+      for (const u of result.unusedSuppressions) {
+        const scope = u.ruleIds ? u.ruleIds.join(',') : 'all rules';
+        const rel = path.relative(cwd, u.file) || u.file;
+        console.log(`  ${rel}:${u.line}  [${scope}]${u.reason ? `  — ${u.reason}` : ''}`);
+      }
     }
 
     // JSON report

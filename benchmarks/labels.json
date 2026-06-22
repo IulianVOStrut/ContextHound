@@ -63,6 +63,11 @@
       "file": "cmd-001.ts",
       "description": "Shell command built via execSync with unsanitised template-string variable interpolation",
       "expectFindings": ["CMD-001"]
+    },
+    {
+      "file": "inj-015.ts",
+      "description": "Untrusted req.query data aliased into an arbitrarily named variable that flows into a prompt — taint analysis",
+      "expectFindings": ["INJ-015"]
     }
   ]
 }

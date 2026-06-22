@@ -122,8 +122,15 @@ hound scan --format markdown --out report
 # Stream findings as JSONL (one JSON object per line)
 hound scan --format jsonl | jq '.severity'
 
-# List all 95 rules
+# List all rules
 hound scan --list-rules
+
+# Explain a rule (or a rule family by prefix)
+hound explain INJ-001
+hound explain PST --format json
+
+# Fast PR gate — scan only files changed vs. origin/main
+hound scan --diff
 
 # Interactive HTML report (self-contained, open in browser)
 hound scan --format html --out report
@@ -266,6 +273,34 @@ All key settings can be overridden at runtime without editing the config file:
 
 Place a `.houndignore` file in your project root to add exclusion patterns without editing `.contexthoundrc.json`. Follows the same glob syntax; lines starting with `#` are comments.
 
+### Inline suppressions
+
+Silence a known false positive directly in the source — no need to disable a rule repo-wide. Directives are recognised in **any** file type (the surrounding comment syntax doesn't matter):
+
+```ts
+// hound-disable-next-line INJ-001 -- userInput is a validated enum
+const prompt = `Summarise the ${userInput} report`;
+
+const cmd = run(`${shell}`); // hound-disable-line CMD-001
+
+// hound-disable RAG-007 -- trusted internal corpus only
+context.push(doc.metadata.title);
+context.push(doc.metadata.author);
+// hound-enable RAG-007
+```
+
+- `hound-disable-line [RULE...]` — suppress findings on the same line
+- `hound-disable-next-line [RULE...]` — suppress findings on the following line
+- `hound-disable [RULE...]` … `hound-enable [RULE...]` — suppress a block (auto-closed at end of file)
+- Omit rule IDs to suppress **all** rules at that location; list one or more (space/comma separated) to scope it
+- Text after `--` is a free-form justification, surfaced in reports
+
+Run with `--report-unused-suppressions` to list directives that no longer match any finding, so dead suppressions can be cleaned up:
+
+```bash
+hound scan --report-unused-suppressions
+```
+
 ### Custom rule plugins
 
 Any `.js` file that exports a `Rule` or `Rule[]` can be loaded as a plugin:
@@ -309,6 +344,18 @@ hound scan --baseline baseline.json
 
 Findings are matched by `ruleId + file` — line shifts don't cause false new-finding alerts.
 
+### Changed-files-only (`--diff`)
+
+For fast pull-request gates, scan only the files that changed relative to a git ref instead of the whole tree:
+
+```bash
+hound scan --diff               # vs. origin/main (default)
+hound scan --diff main          # vs. a named branch
+hound scan --diff HEAD~5        # vs. an arbitrary ref
+```
+
+Covers committed, staged, unstaged, and untracked-but-not-ignored files. If git is unavailable or the ref can't be resolved (e.g. a shallow CI clone), ContextHound prints a warning and falls back to a full scan rather than silently passing. Combine with `--baseline` for findings-level diffing, or use `--diff` alone for the fastest PR feedback.
+
 ---
 
 ## Risk Scoring
@@ -349,6 +396,10 @@ If your prompts include explicit safety language (input delimiters, refusal-to-r
 | INJ-009 | Critical | HTTP request body parsed as the messages array directly — attacker controls role and content |
 | INJ-010 | High | Plaintext role-label transcript (`User:`, `Assistant:`, `system:`) built with untrusted input concatenation |
 | INJ-011 | High | Browser DOM or URL source (`window.location`, `document.cookie`, `getElementById`) fed directly into LLM call |
+| INJ-012 | High | Conversation history spread into messages array without sanitisation |
+| INJ-013 | High | Tool/function call result inserted into messages without sanitisation |
+| INJ-014 | High | LLM completion piped as user-role content into a subsequent LLM call |
+| INJ-015 | High | Untrusted external input (HTTP/CLI/DOM) flows into a prompt — name-agnostic **taint analysis**, follows aliases, honours sanitisers |
 
 ### B. Exfiltration (EXF)
 
@@ -622,6 +673,14 @@ Detection rate:      100.0%  (8/8 expected findings triggered)
 ```
 
 The benchmark exits with code 1 if any false positives or false negatives are found, making it suitable as a CI quality gate for rule changes. To add a fixture, drop a file into `benchmarks/safe/` or `benchmarks/unsafe/` and update `benchmarks/labels.json` with the expected findings.
+
+### Per-rule precision / recall
+
+The benchmark also prints a **per-rule signal table** (worst F1 first) so low-precision rules are easy to spot — true/false positives, false negatives, precision, recall, and F1 for every labelled rule. FP counts come from the `safe/` fixtures (ground truth: zero findings); TP/FN come from the labelled `unsafe/` fixtures. Pass `--report <path>` to also emit a machine-readable JSON report for dashboards or CI trend tracking:
+
+```bash
+npm run benchmark -- --report bench-report.json
+```
 
 ---
 
