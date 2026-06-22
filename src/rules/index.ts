@@ -38,4 +38,4 @@ export const allRules: Rule[] = [
 export { injectionRules, exfiltrationRules, jailbreakRules, unsafeToolsRules, commandInjectionRules, ragRules, encodingRules, outputHandlingRules, multimodalRules, skillsRules, agenticRules, mcpRules, supplyChainRules, dosRules, persistenceRules, taintRules };
 export type { Rule, RuleMatch } from './types.js';
 export { calcRiskPoints, ruleToFinding } from './types.js';
-export { scoreMitigations } from './mitigation.js';
+export { scoreMitigations, mitigationReductionFor } from './mitigation.js';

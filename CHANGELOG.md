@@ -51,6 +51,16 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic V
   patched versions via `overrides`; `npm audit` now reports 0 vulnerabilities
   with the full test suite still green.
 
+### Changed
+
+- **Mitigations are now scoped to the relevant rule.** Previously the total of
+  all detected prompt mitigations was applied as a flat reduction to *every*
+  finding, so an unrelated guard (e.g. a tool allowlist) could dampen an
+  exfiltration or command-injection finding's score. Each mitigation now
+  declares the rule categories it addresses (`appliesTo`), and only matching
+  mitigations reduce a given finding's risk. New exported
+  `mitigationReductionFor(mitigation, ruleId)`.
+
 ### Fixed
 
 - **Incremental cache could serve stale findings.** The cache keyed entries on
