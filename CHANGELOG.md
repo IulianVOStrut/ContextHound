@@ -16,6 +16,11 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic V
   `--report-unused-suppressions` flag lists directives that match nothing so dead
   suppressions can be pruned. `ScanResult` gains `suppressedCount` and
   `unusedSuppressions`.
+- **Per-rule precision/recall in the benchmark.** `npm run benchmark` now prints
+  a per-rule signal table (TP/FP/FN, precision, recall, F1; worst F1 first) so
+  low-precision rules are easy to spot, and accepts `--report <path>` to emit a
+  machine-readable JSON report for CI trend tracking. `computePerRule` is now
+  exported and unit-tested.
 - **`hound explain <RULE-ID>` command.** Prints a rule's severity, confidence,
   category (with a plain-language description), linked MITRE ATT&CK technique,
   remediation, and the exact suppression directive — no scan required. Accepts a

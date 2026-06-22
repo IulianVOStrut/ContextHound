@@ -670,6 +670,14 @@ Detection rate:      100.0%  (8/8 expected findings triggered)
 
 The benchmark exits with code 1 if any false positives or false negatives are found, making it suitable as a CI quality gate for rule changes. To add a fixture, drop a file into `benchmarks/safe/` or `benchmarks/unsafe/` and update `benchmarks/labels.json` with the expected findings.
 
+### Per-rule precision / recall
+
+The benchmark also prints a **per-rule signal table** (worst F1 first) so low-precision rules are easy to spot — true/false positives, false negatives, precision, recall, and F1 for every labelled rule. FP counts come from the `safe/` fixtures (ground truth: zero findings); TP/FN come from the labelled `unsafe/` fixtures. Pass `--report <path>` to also emit a machine-readable JSON report for dashboards or CI trend tracking:
+
+```bash
+npm run benchmark -- --report bench-report.json
+```
+
 ---
 
 ## Browser Extension

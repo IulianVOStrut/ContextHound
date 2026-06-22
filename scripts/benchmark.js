@@ -80,8 +80,51 @@ function buildFindingsMap(scanResult) {
   return map;
 }
 
+// ── Per-rule precision / recall ───────────────────────────────────────────────
+// TP / FN come from labelled unsafe fixtures; FP comes from safe fixtures, where
+// ground truth is "zero findings" (unsafe fixtures only label the primary rule,
+// so extra hits there are not counted as false positives).
+function computePerRule(labels, safeMap, unsafeMap) {
+  const stats = {};
+  const ensure = (id) => (stats[id] ??= { tp: 0, fp: 0, fn: 0 });
+
+  for (const fixture of labels.safe) {
+    for (const id of safeMap[fixture.file] ?? []) ensure(id).fp++;
+  }
+  for (const fixture of labels.unsafe) {
+    const actual = new Set(unsafeMap[fixture.file] ?? []);
+    for (const id of fixture.expectFindings ?? []) {
+      if (actual.has(id)) ensure(id).tp++;
+      else ensure(id).fn++;
+    }
+  }
+
+  return Object.entries(stats)
+    .map(([id, s]) => {
+      const precision = s.tp + s.fp > 0 ? s.tp / (s.tp + s.fp) : null;
+      const recall = s.tp + s.fn > 0 ? s.tp / (s.tp + s.fn) : null;
+      const f1 = precision != null && recall != null && precision + recall > 0
+        ? (2 * precision * recall) / (precision + recall)
+        : null;
+      return { id, ...s, precision, recall, f1 };
+    })
+    .sort((a, b) => {
+      // Worst signal first. Score by F1 when available; otherwise fall back to
+      // precision so FP-only rules (recall n/a) still rank as poor, not last.
+      const score = (r) => (r.f1 != null ? r.f1 : r.precision != null ? r.precision : 2);
+      return score(a) - score(b) || b.fp - a.fp || a.id.localeCompare(b.id);
+    });
+}
+
+function pct(v) {
+  return v == null ? '  n/a' : `${(v * 100).toFixed(0).padStart(3)}%`;
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 function main() {
+  const reportIdx = process.argv.indexOf('--report');
+  const reportPath = reportIdx !== -1 ? process.argv[reportIdx + 1] : null;
+
   const labels = JSON.parse(fs.readFileSync(LABELS_PATH, 'utf8'));
 
   console.log(`\n${B}${C}ContextHound Benchmark${X}  ${D}v${labels.version ?? 1}${X}`);
@@ -190,10 +233,50 @@ function main() {
   }
   console.log('═'.repeat(60) + '\n');
 
+  // ─── Per-rule precision / recall ──────────────────────────────────────────
+  const perRule = computePerRule(labels, safeMap, unsafeMap);
+
+  console.log(`${B}PER-RULE SIGNAL${X}  ${D}(worst F1 first — candidates for tuning)${X}`);
+  console.log('─'.repeat(60));
+  console.log(`  ${D}RULE       TP  FP  FN   PREC  RECALL    F1${X}`);
+  for (const r of perRule) {
+    const weak = (r.precision != null && r.precision < 0.5) || (r.recall != null && r.recall < 1);
+    const mark = weak ? `${Y}!${X}` : ' ';
+    const f1 = r.f1 == null ? '  n/a' : `${(r.f1 * 100).toFixed(0).padStart(3)}%`;
+    console.log(
+      `  ${mark} ${r.id.padEnd(9)} ${String(r.tp).padStart(2)}  ${String(r.fp).padStart(2)}  ${String(r.fn).padStart(2)}   ` +
+      `${pct(r.precision)}    ${pct(r.recall)}  ${f1}`,
+    );
+  }
+  console.log('');
+
+  // ─── Machine-readable report ──────────────────────────────────────────────
+  const report = {
+    generatedAt: new Date().toISOString(),
+    labelsVersion: labels.version ?? 1,
+    summary: {
+      safeFiles: totalSafe,
+      safeFpFiles,
+      fileLevelFpRate: Number(fpRate),
+      detectionRate: Number(detRate),
+      expectedFindings: expectedTotal,
+      detectedFindings: detectedCount,
+    },
+    perRule,
+  };
+  if (reportPath) {
+    fs.writeFileSync(reportPath, JSON.stringify(report, null, 2));
+    console.log(`${D}Report written to ${reportPath}${X}\n`);
+  }
+
   // Exit 1 if any FPs or FNs (useful for CI quality gates)
   if (safeFpFiles > 0 || allFnRules.length > 0) {
     process.exit(1);
   }
 }
 
-main();
+if (require.main === module) {
+  main();
+}
+
+module.exports = { computePerRule };
