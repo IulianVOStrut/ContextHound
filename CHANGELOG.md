@@ -9,6 +9,13 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic V
 
 ### Added
 
+- **`INJ-015` — lightweight taint analysis (JS/TS).** Follows an *arbitrarily
+  named* variable from an unambiguous untrusted source (HTTP request fields, CLI
+  args, browser URL/cookie) into a prompt sink — including one-hop aliases —
+  catching flows the name-based INJ rules miss. Conservative by design: sanitiser
+  wrappers clear taint, only prompt-like template literals are treated as sinks,
+  and variable names already covered by `INJ-001` are skipped to avoid
+  double-reporting. New `taint` rule module; 121 rules total.
 - **Inline suppression comments.** Silence a known false positive in source with
   `hound-disable-line`, `hound-disable-next-line`, or `hound-disable` /
   `hound-enable` block markers — recognised in any file type, optionally scoped

@@ -396,6 +396,10 @@ If your prompts include explicit safety language (input delimiters, refusal-to-r
 | INJ-009 | Critical | HTTP request body parsed as the messages array directly — attacker controls role and content |
 | INJ-010 | High | Plaintext role-label transcript (`User:`, `Assistant:`, `system:`) built with untrusted input concatenation |
 | INJ-011 | High | Browser DOM or URL source (`window.location`, `document.cookie`, `getElementById`) fed directly into LLM call |
+| INJ-012 | High | Conversation history spread into messages array without sanitisation |
+| INJ-013 | High | Tool/function call result inserted into messages without sanitisation |
+| INJ-014 | High | LLM completion piped as user-role content into a subsequent LLM call |
+| INJ-015 | High | Untrusted external input (HTTP/CLI/DOM) flows into a prompt — name-agnostic **taint analysis**, follows aliases, honours sanitisers |
 
 ### B. Exfiltration (EXF)
 
