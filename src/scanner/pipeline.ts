@@ -5,7 +5,8 @@ import type { Rule } from '../rules/index.js';
 import { discoverFiles } from './discover.js';
 import { extractPrompts } from './extractor.js';
 import { analyzePrompt, scoreFile, buildScanResult } from '../scoring/index.js';
-import { loadCache, saveCache, getCachedFindings, setCacheEntry } from './cache.js';
+import { allRules } from '../rules/index.js';
+import { loadCache, saveCache, getCachedFindings, setCacheEntry, computeCacheSignature } from './cache.js';
 import type { HoundCache } from './cache.js';
 
 async function loadHoundIgnore(cwd: string): Promise<string[]> {
@@ -66,8 +67,6 @@ async function loadPluginRules(plugins: string[], cwd: string): Promise<Rule[]> 
   return rules;
 }
 
-const EMPTY_CACHE: HoundCache = { version: '1', entries: {} };
-
 export async function runScan(
   cwd: string,
   config: AuditConfig,
@@ -86,9 +85,17 @@ export async function runScan(
     ? await loadPluginRules(config.plugins, cwd)
     : undefined;
 
-  // Load cache (enabled by default; disabled with cache: false)
+  // Load cache (enabled by default; disabled with cache: false). The signature
+  // ties the cache to the effective ruleset + findings-affecting config, so a
+  // rules upgrade or filter change discards stale entries instead of serving them.
   const useCache = config.cache !== false;
-  const cache: HoundCache = useCache ? loadCache(cwd) : { ...EMPTY_CACHE, entries: {} };
+  const cacheSignature = computeCacheSignature(
+    pluginRules ? [...allRules, ...pluginRules] : allRules,
+    config,
+  );
+  const cache: HoundCache = useCache
+    ? loadCache(cwd, cacheSignature)
+    : { version: cacheSignature, entries: {} };
 
   const concurrency = config.concurrency ?? 8;
   const limit = createLimiter(concurrency);

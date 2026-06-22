@@ -5,6 +5,33 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic V
 
 ---
 
+## [Unreleased]
+
+### Security
+
+- Resolved all 11 Dependabot advisories (1 critical, high, moderate, low). The
+  only advisory affecting a runtime dependency was a `picomatch` ReDoS / glob
+  method-injection issue reaching production through `fast-glob` → `micromatch`;
+  it is now pinned to a patched release. The remaining advisories were all in
+  the dev/test toolchain (`handlebars`, `@babel/core`, `flatted`,
+  `brace-expansion`, `js-yaml`, and a second `picomatch` line) and never shipped
+  in the published package (`files` is limited to `dist/`). All are pinned to
+  patched versions via `overrides`; `npm audit` now reports 0 vulnerabilities
+  with the full test suite still green.
+
+### Fixed
+
+- **Incremental cache could serve stale findings.** The cache keyed entries on
+  file `mtime` alone behind a hardcoded version, so a rules upgrade (new or
+  changed rules) or a findings-affecting config change (`--include-rules`,
+  `--exclude-rules`, `--min-confidence`) left unchanged files reporting their
+  old results. The cache now stores a signature derived from the effective
+  ruleset (rule metadata + `check` source, including plugin rules) and the
+  relevant config; any change automatically invalidates the cache. Old-format
+  caches are discarded on upgrade.
+
+---
+
 ## [2.0.0] — 2026-03-15
 
 ### Added — 25 new detection rules (95 → 120 total)
