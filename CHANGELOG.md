@@ -16,6 +16,10 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic V
   `--report-unused-suppressions` flag lists directives that match nothing so dead
   suppressions can be pruned. `ScanResult` gains `suppressedCount` and
   `unusedSuppressions`.
+- **`--diff [ref]` changed-files mode.** Scan only files that changed vs. a git
+  ref (default `origin/main`) for fast PR gates — covers committed, staged,
+  unstaged, and untracked files, and falls back to a full scan with a warning if
+  git/the ref is unavailable. Adds `diff` to `AuditConfig`.
 - CLI `--version` now reports the correct package version (was hardcoded to an
   old value).
 

@@ -337,6 +337,18 @@ hound scan --baseline baseline.json
 
 Findings are matched by `ruleId + file` — line shifts don't cause false new-finding alerts.
 
+### Changed-files-only (`--diff`)
+
+For fast pull-request gates, scan only the files that changed relative to a git ref instead of the whole tree:
+
+```bash
+hound scan --diff               # vs. origin/main (default)
+hound scan --diff main          # vs. a named branch
+hound scan --diff HEAD~5        # vs. an arbitrary ref
+```
+
+Covers committed, staged, unstaged, and untracked-but-not-ignored files. If git is unavailable or the ref can't be resolved (e.g. a shallow CI clone), ContextHound prints a warning and falls back to a full scan rather than silently passing. Combine with `--baseline` for findings-level diffing, or use `--diff` alone for the fastest PR feedback.
+
 ---
 
 ## Risk Scoring

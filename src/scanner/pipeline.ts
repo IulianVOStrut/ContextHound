@@ -9,6 +9,7 @@ import { allRules } from '../rules/index.js';
 import { loadCache, saveCache, getCachedFindings, setCacheEntry, computeCacheSignature } from './cache.js';
 import type { HoundCache } from './cache.js';
 import { parseSuppressions, applySuppressions } from './suppressions.js';
+import { getChangedFiles } from './gitDiff.js';
 import type { UnusedSuppression } from '../types.js';
 
 async function loadHoundIgnore(cwd: string): Promise<string[]> {
@@ -80,7 +81,17 @@ export async function runScan(
     config = { ...config, exclude: [...config.exclude, ...houndIgnorePatterns] };
   }
 
-  const files = await discoverFiles(cwd, config);
+  let files = await discoverFiles(cwd, config);
+
+  // --diff mode: restrict to files changed vs. a git ref (fast PR gate).
+  if (config.diff) {
+    const changed = getChangedFiles(cwd, config.diff);
+    if (changed) {
+      files = files.filter(f => changed.has(f));
+    } else {
+      console.warn(`Warning: could not compute git diff against '${config.diff}'; scanning all files`);
+    }
+  }
 
   // Load plugin rules
   const pluginRules = config.plugins?.length

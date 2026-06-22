@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { loadConfig } from './config/loader.js';
 import { runScan } from './scanner/pipeline.js';
+import { resolveDiffRef } from './scanner/gitDiff.js';
 import { printConsoleReport } from './report/console.js';
 import { buildJsonReport } from './report/json.js';
 import { buildSarifReport } from './report/sarif.js';
@@ -166,6 +167,7 @@ program
       baseline: opts.baseline ?? fileConfig.baseline,
       minConfidence: (opts.minConfidence as Confidence | undefined) ?? fileConfig.minConfidence,
       reportUnusedSuppressions: opts.reportUnusedSuppressions ?? fileConfig.reportUnusedSuppressions,
+      diff: resolveDiffRef(opts.diff) ?? fileConfig.diff,
     };
 
     if (config.verbose) {
@@ -175,6 +177,7 @@ program
       if (config.cache !== false) console.log('Cache: enabled (.hound-cache.json)');
       if (config.plugins?.length) console.log(`Plugins: ${config.plugins.join(', ')}`);
       if (config.baseline) console.log(`Baseline: ${config.baseline}`);
+      if (config.diff) console.log(`Diff: changed files vs. ${config.diff}`);
     }
 
     // ── --watch mode ──────────────────────────────────────────────────────
