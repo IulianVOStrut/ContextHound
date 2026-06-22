@@ -5,6 +5,21 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic V
 
 ---
 
+## [Unreleased]
+
+### Fixed
+
+- **Incremental cache could serve stale findings.** The cache keyed entries on
+  file `mtime` alone behind a hardcoded version, so a rules upgrade (new or
+  changed rules) or a findings-affecting config change (`--include-rules`,
+  `--exclude-rules`, `--min-confidence`) left unchanged files reporting their
+  old results. The cache now stores a signature derived from the effective
+  ruleset (rule metadata + `check` source, including plugin rules) and the
+  relevant config; any change automatically invalidates the cache. Old-format
+  caches are discarded on upgrade.
+
+---
+
 ## [2.0.0] — 2026-03-15
 
 ### Added — 25 new detection rules (95 → 120 total)
