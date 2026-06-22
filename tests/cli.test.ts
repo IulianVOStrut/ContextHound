@@ -312,3 +312,28 @@ describe('explain command', () => {
     expect(r.stderr).toMatch(/No rule matches/);
   });
 });
+
+// ── presets ────────────────────────────────────────────────────────────────────
+
+describe('rule presets', () => {
+  it('--list-presets prints presets and exits 0', () => {
+    const r = runCli(['scan', '--list-presets']);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toMatch(/owasp-llm-top10/);
+    expect(r.stdout).toMatch(/mcp/);
+  });
+
+  it('--preset with an unknown name exits 1 with a helpful message', () => {
+    const r = runCli(['scan', '--preset', 'bogus', '--dir', FIXTURES_DIR]);
+    expect(r.status).toBe(1);
+    expect(r.stdout + r.stderr).toMatch(/Unknown preset "bogus"/);
+  });
+
+  it('--preset restricts findings to the bundle', () => {
+    const r = runCli(['scan', '--dir', FIXTURES_DIR, '--preset', 'jailbreak', '--format', 'json', '--out', path.join(os.tmpdir(), 'preset-jbk'), '--no-cache']);
+    const parsed = JSON.parse(fs.readFileSync(path.join(os.tmpdir(), 'preset-jbk.json'), 'utf8'));
+    const ids = [...new Set((parsed.allFindings ?? []).map((f: { id: string }) => f.id))] as string[];
+    // every reported rule must be a JBK rule
+    expect(ids.every(id => id.startsWith('JBK-'))).toBe(true);
+  });
+});
