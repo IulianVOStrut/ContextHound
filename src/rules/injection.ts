@@ -485,8 +485,12 @@ export const injectionRules: Rule[] = [
       // response object — indicated by .content, .text, or .choices accessor on the value.
       // e.g. { role: 'user', content: response.content }
       //      { role: 'user', content: completion.choices[0].message.content }
+      // Require an explicit property accessor (`.` or `?.`) between the value
+      // variable and the content/text/choices field. A bare identifier such as
+      // `userContent` must NOT match `user` + `.content` — the optional dot
+      // previously allowed that, flagging safe code as a finding.
       const llmOutputContentPattern =
-        /content\s*:\s*[a-z_$][a-z0-9_$]*\s*(?:\??\.)?\s*(?:content\b|text\b|choices?\s*[\[.])/i;
+        /content\s*:\s*[a-z_$][a-z0-9_$]*\s*(?:\?\.|\.)\s*(?:content\b|text\b|choices?\s*[\[.])/i;
 
       lines.forEach((line, i) => {
         if (!/role\s*:\s*['"`]user['"`]/i.test(line)) return;

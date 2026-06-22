@@ -2354,6 +2354,11 @@ describe('INJ-014: LLM completion piped as user-role content into a subsequent L
     const code = 'role: "user", content: response.content';
     expect(rule.check(makePrompt(code, 1, 'raw'), 'pipeline.ts')).toHaveLength(0);
   });
+
+  it('does not flag a camelCase identifier containing "content" (e.g. userContent)', () => {
+    const code = 'messages.push({ role: "user", content: userContent });\n';
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'pipeline.ts')).toHaveLength(0);
+  });
 });
 
 // ── RAG-007: Document metadata field injection ────────────────────────────────
@@ -2544,34 +2549,54 @@ describe('SCH-003: LangChain unsafe deserialization without allowlist (CVE-2025-
 describe('DOS-001: LLM completion call with no token limit', () => {
   const rule = dosRules.find(r => r.id === 'DOS-001')!;
 
-  it('flags openai chat.completions.create without max_tokens', () => {
+  it('flags a capless call with an output-inflation prompt', () => {
     const code = [
       'import OpenAI from "openai";',
       'const client = new OpenAI();',
       'const resp = await client.chat.completions.create({',
       '  model: "gpt-4o",',
+      '  messages: [{ role: "user", content: "Think step by step and be exhaustive: " + prompt }],',
+      '});',
+    ].join('\n');
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'api.ts')).toHaveLength(1);
+  });
+
+  it('flags a capless call that uses a reasoning model', () => {
+    const code = [
+      'const resp = await client.chat.completions.create({',
+      '  model: "o3",',
       '  messages: [{ role: "user", content: prompt }],',
       '});',
     ].join('\n');
     expect(rule.check(makePrompt(code, 1, 'code-block'), 'api.ts')).toHaveLength(1);
   });
 
-  it('does not flag chat.completions.create with max_tokens', () => {
+  it('does not flag a capless call with no inflation signal (e.g. a one-shot prompt)', () => {
     const code = [
       'const resp = await client.chat.completions.create({',
       '  model: "gpt-4o",',
-      '  messages: msgs,',
+      '  messages: [{ role: "user", content: prompt }],',
+      '});',
+    ].join('\n');
+    expect(rule.check(makePrompt(code, 1, 'code-block'), 'api.ts')).toHaveLength(0);
+  });
+
+  it('does not flag an inflation prompt when max_tokens is set', () => {
+    const code = [
+      'const resp = await client.chat.completions.create({',
+      '  model: "gpt-4o",',
+      '  messages: [{ role: "user", content: "Be extremely verbose and thorough: " + prompt }],',
       '  max_tokens: 1024,',
       '});',
     ].join('\n');
     expect(rule.check(makePrompt(code, 1, 'code-block'), 'api.ts')).toHaveLength(0);
   });
 
-  it('flags anthropic messages.create without max_tokens', () => {
+  it('flags anthropic messages.create with inflation prompt and no cap', () => {
     const code = [
       'const msg = await client.messages.create({',
       '  model: "claude-opus-4-6",',
-      '  messages: [{ role: "user", content: userMsg }],',
+      '  messages: [{ role: "user", content: "Explain every step in full detail: " + userMsg }],',
       '});',
     ].join('\n');
     expect(rule.check(makePrompt(code, 1, 'code-block'), 'claude.ts')).toHaveLength(1);
@@ -2582,16 +2607,16 @@ describe('DOS-001: LLM completion call with no token limit', () => {
       'const msg = await client.messages.create({',
       '  model: "claude-opus-4-6",',
       '  max_tokens: 512,',
-      '  messages: [{ role: "user", content: userMsg }],',
+      '  messages: [{ role: "user", content: "be exhaustive: " + userMsg }],',
       '});',
     ].join('\n');
     expect(rule.check(makePrompt(code, 1, 'code-block'), 'claude.ts')).toHaveLength(0);
   });
 
-  it('flags ChatOpenAI() without maxTokens', () => {
+  it('flags a capless reasoning ChatOpenAI() construction', () => {
     const code = [
       'from langchain_openai import ChatOpenAI',
-      'llm = ChatOpenAI(model="gpt-4o")',
+      'llm = ChatOpenAI(model="o1-preview")',
     ].join('\n');
     expect(rule.check(makePrompt(code, 1, 'code-block'), 'chain.py')).toHaveLength(1);
   });
@@ -2599,7 +2624,7 @@ describe('DOS-001: LLM completion call with no token limit', () => {
   it('does not flag ChatOpenAI() with max_tokens in same 20-line window', () => {
     const code = [
       'llm = ChatOpenAI(',
-      '    model="gpt-4o",',
+      '    model="o1-preview",',
       '    max_tokens=512,',
       ')',
     ].join('\n');
@@ -2607,7 +2632,7 @@ describe('DOS-001: LLM completion call with no token limit', () => {
   });
 
   it('does not fire on non-code-block kind', () => {
-    const code = 'client.chat.completions.create({ model: "gpt-4o" })';
+    const code = 'client.chat.completions.create({ model: "o3" })';
     expect(rule.check(makePrompt(code, 1, 'raw'), 'api.ts')).toHaveLength(0);
   });
 });
