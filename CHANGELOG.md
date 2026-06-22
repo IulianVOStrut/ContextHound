@@ -53,6 +53,13 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic V
 
 ### Changed
 
+- **`DOS-001` retuned for precision.** It previously fired on *every* completion
+  call without a token cap (0% precision in the benchmark — it never matched a
+  real issue and flagged 4/5 safe fixtures). It now fires only when a call is
+  uncapped **and** shows an output-inflation signal — a reasoning model
+  (`o1`/`o3`, `reasoning_effort`, extended thinking) or an inflation instruction
+  in the prompt (“think step by step”, “be exhaustive”, “in full detail”, “do
+  not stop/summarize”) — i.e. the actual ThinkTrap / reasoning-inflation vector.
 - **Mitigations are now scoped to the relevant rule.** Previously the total of
   all detected prompt mitigations was applied as a flat reduction to *every*
   finding, so an unrelated guard (e.g. a tool allowlist) could dampen an
@@ -62,6 +69,11 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic V
   `mitigationReductionFor(mitigation, ruleId)`.
 
 ### Fixed
+
+- **`INJ-014` false positive on camelCase identifiers.** Its accessor dot was
+  optional, so `content: userContent` matched as `user` + `.content`. The dot
+  (or `?.`) is now required, so bare identifiers no longer trip the rule while
+  `response.content` / `completion.choices[…]` still do.
 
 - **Incremental cache could serve stale findings.** The cache keyed entries on
   file `mtime` alone behind a hardcoded version, so a rules upgrade (new or
