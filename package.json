@@ -26,6 +26,7 @@
     "test:watch": "jest --watch",
     "lint": "eslint src",
     "benchmark": "npm run build && node scripts/benchmark.js",
+    "prepare": "npm run build",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
