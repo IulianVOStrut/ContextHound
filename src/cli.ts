@@ -5,6 +5,7 @@ import path from 'path';
 import { loadConfig } from './config/loader.js';
 import { runScan } from './scanner/pipeline.js';
 import { resolveDiffRef } from './scanner/gitDiff.js';
+import { PRESETS, resolvePresets } from './config/presets.js';
 import { printConsoleReport } from './report/console.js';
 import { buildJsonReport } from './report/json.js';
 import { buildSarifReport } from './report/sarif.js';
@@ -161,6 +162,8 @@ program
   .option('--min-confidence <level>', 'Minimum confidence level to report: low|medium|high (default: low)')
   .option('--diff [ref]', 'Scan only files changed vs. a git ref (default: origin/main)')
   .option('--report-unused-suppressions', 'List inline suppression comments that matched no finding')
+  .option('--preset <names>', 'Enable a curated rule bundle (comma-separated): ' + Object.keys(PRESETS).join(', '))
+  .option('--list-presets', 'Print available rule presets and exit')
   .action(async (opts: {
     config?: string;
     format: string;
@@ -179,7 +182,17 @@ program
     minConfidence?: string;
     diff?: string | boolean;
     reportUnusedSuppressions?: boolean;
+    preset?: string;
+    listPresets?: boolean;
   }) => {
+    // ── --list-presets ────────────────────────────────────────────────────
+    if (opts.listPresets) {
+      for (const [name, preset] of Object.entries(PRESETS)) {
+        console.log(`${name.padEnd(18)} ${preset.description}`);
+        console.log(`${' '.repeat(18)} rules: ${preset.rules.join(', ')}`);
+      }
+      process.exit(0);
+    }
     // ── --list-rules ──────────────────────────────────────────────────────
     if (opts.listRules) {
       const formats = opts.format.split(',').map(f => f.trim());
@@ -231,6 +244,18 @@ program
       reportUnusedSuppressions: opts.reportUnusedSuppressions ?? fileConfig.reportUnusedSuppressions,
       diff: resolveDiffRef(opts.diff) ?? fileConfig.diff,
     };
+
+    // --preset adds curated rule-ID patterns to includeRules (union with any
+    // patterns already set via config or --include-rules).
+    if (opts.preset) {
+      try {
+        const presetRules = resolvePresets(opts.preset);
+        config.includeRules = [...new Set([...(config.includeRules ?? []), ...presetRules])];
+      } catch (err) {
+        console.error((err as Error).message);
+        process.exit(1);
+      }
+    }
 
     if (config.verbose) {
       console.log(`Scanning: ${cwd}`);

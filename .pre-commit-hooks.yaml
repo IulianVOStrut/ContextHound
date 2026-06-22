@@ -1,0 +1,19 @@
+# ContextHound pre-commit hook definitions — https://pre-commit.com
+#
+# Usage in a consumer repo's .pre-commit-config.yaml:
+#
+#   repos:
+#     - repo: https://github.com/IulianVOStrut/ContextHound
+#       rev: v2.0.0
+#       hooks:
+#         - id: contexthound
+#           # optional: scan only changed files and set a stricter gate
+#           # args: ["--diff", "HEAD", "--fail-on", "high"]
+#
+- id: contexthound
+  name: ContextHound prompt-injection scan
+  description: Scan for LLM prompt-injection, jailbreak, exfiltration, and unsafe-agent risks
+  entry: hound scan
+  language: node
+  pass_filenames: false
+  require_serial: true

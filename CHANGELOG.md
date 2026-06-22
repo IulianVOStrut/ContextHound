@@ -9,6 +9,16 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic V
 
 ### Added
 
+- **Rule presets.** `--preset <names>` enables a curated rule bundle
+  (`owasp-llm-top10`, `injection`, `jailbreak`, `exfiltration`, `agentic`, `mcp`,
+  `supply-chain`, `prompt-files`) instead of listing IDs; presets union with
+  `includeRules` and can be combined (`--preset mcp,agentic`). `--list-presets`
+  prints them. The composite GitHub Action gains matching `preset` and `diff`
+  inputs.
+- **pre-commit hook.** A `.pre-commit-hooks.yaml` exposes a `contexthound` hook
+  for the [pre-commit](https://pre-commit.com) framework; a `prepare` script
+  builds `dist/` on install so the hook works from a git ref.
+
 - **`INJ-015` — lightweight taint analysis (JS/TS).** Follows an *arbitrarily
   named* variable from an unambiguous untrusted source (HTTP request fields, CLI
   args, browser URL/cookie) into a prompt sink — including one-hop aliases —

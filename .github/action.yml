@@ -19,6 +19,14 @@ inputs:
     description: 'Path to .contexthoundrc.json config file'
     required: false
     default: ''
+  diff:
+    description: 'Scan only files changed vs. this git ref (e.g. origin/main). Empty = full scan.'
+    required: false
+    default: ''
+  preset:
+    description: 'Enable a curated rule bundle (e.g. owasp-llm-top10, mcp). Empty = all rules.'
+    required: false
+    default: ''
 
 runs:
   using: 'composite'
@@ -37,6 +45,12 @@ runs:
         fi
         if [ -n "${{ inputs.config }}" ]; then
           ARGS="$ARGS --config ${{ inputs.config }}"
+        fi
+        if [ -n "${{ inputs.diff }}" ]; then
+          ARGS="$ARGS --diff ${{ inputs.diff }}"
+        fi
+        if [ -n "${{ inputs.preset }}" ]; then
+          ARGS="$ARGS --preset ${{ inputs.preset }}"
         fi
         npx hound scan $ARGS
       working-directory: ${{ github.workspace }}

@@ -301,6 +301,41 @@ Run with `--report-unused-suppressions` to list directives that no longer match 
 hound scan --report-unused-suppressions
 ```
 
+### Rule presets
+
+Enable a curated subset of rules with `--preset` instead of listing IDs. Presets union with any `includeRules` you already have, and several can be combined:
+
+```bash
+hound scan --preset owasp-llm-top10
+hound scan --preset mcp,agentic
+hound scan --list-presets          # show all presets and their rule patterns
+```
+
+| Preset | Rules |
+|--------|-------|
+| `owasp-llm-top10` | INJ, JBK, EXF, OUT, RAG, TOOL, SCH, DOS, VIS |
+| `injection` | INJ, RAG, ENC |
+| `jailbreak` | JBK |
+| `exfiltration` | EXF |
+| `agentic` | AGT, MCP, TOOL |
+| `mcp` | MCP |
+| `supply-chain` | SCH |
+| `prompt-files` | INJ, JBK, EXF, ENC, SKL |
+
+### pre-commit hook
+
+ContextHound ships a [pre-commit](https://pre-commit.com) hook. Add it to your `.pre-commit-config.yaml`:
+
+```yaml
+repos:
+  - repo: https://github.com/IulianVOStrut/ContextHound
+    rev: v2.0.0
+    hooks:
+      - id: contexthound
+        # optional — scan only changed files and fail on high-severity findings:
+        # args: ["--diff", "HEAD", "--fail-on", "high"]
+```
+
 ### Custom rule plugins
 
 Any `.js` file that exports a `Rule` or `Rule[]` can be loaded as a plugin:
