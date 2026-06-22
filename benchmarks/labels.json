@@ -68,6 +68,11 @@
       "file": "inj-015.ts",
       "description": "Untrusted req.query data aliased into an arbitrarily named variable that flows into a prompt — taint analysis",
       "expectFindings": ["INJ-015"]
+    },
+    {
+      "file": "dos-001.ts",
+      "description": "Uncapped completion with an output-inflation prompt (ThinkTrap / reasoning-inflation)",
+      "expectFindings": ["DOS-001"]
     }
   ]
 }
