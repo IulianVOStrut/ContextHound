@@ -122,8 +122,15 @@ hound scan --format markdown --out report
 # Stream findings as JSONL (one JSON object per line)
 hound scan --format jsonl | jq '.severity'
 
-# List all 95 rules
+# List all rules
 hound scan --list-rules
+
+# Explain a rule (or a rule family by prefix)
+hound explain INJ-001
+hound explain PST --format json
+
+# Fast PR gate — scan only files changed vs. origin/main
+hound scan --diff
 
 # Interactive HTML report (self-contained, open in browser)
 hound scan --format html --out report

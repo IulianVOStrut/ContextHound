@@ -16,6 +16,10 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic V
   `--report-unused-suppressions` flag lists directives that match nothing so dead
   suppressions can be pruned. `ScanResult` gains `suppressedCount` and
   `unusedSuppressions`.
+- **`hound explain <RULE-ID>` command.** Prints a rule's severity, confidence,
+  category (with a plain-language description), linked MITRE ATT&CK technique,
+  remediation, and the exact suppression directive — no scan required. Accepts a
+  family prefix (e.g. `hound explain INJ`) and supports `--format json`.
 - **`--diff [ref]` changed-files mode.** Scan only files that changed vs. a git
   ref (default `origin/main`) for fast PR gates — covers committed, staged,
   unstaged, and untracked files, and falls back to a full scan with a warning if
