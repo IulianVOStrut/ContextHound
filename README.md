@@ -455,6 +455,15 @@ fs.writeFileSync('results.sarif', buildSarifReport(result));
 
 The runtime guard is available as `require('context-hound/runtime')` and the config JSON Schema as `context-hound/schema.json`.
 
+```js
+const { createGuard } = require('context-hound/runtime');
+
+const guard = createGuard({ policy: { critical: 'block', high: 'warn' } });
+const answer = await guard.wrap(messages, () => client.chat.completions.create({ model, messages }));
+```
+
+By default the guard runs only the rules that make sense on live message content (`RUNTIME_DEFAULT_RULES`: jailbreak phrases, encoding and steganography, system-prompt extraction, secret values and hidden comment instructions), so ordinary user messages are not blocked by code-oriented rules. Set `policy.includeRules` to choose your own set; rules passed as `extraRules` always run.
+
 ---
 
 ## Risk Scoring

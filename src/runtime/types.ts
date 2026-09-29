@@ -40,13 +40,17 @@ export interface GuardPolicy {
   minConfidence?: Confidence;
   /** Rule IDs (or prefix globs like 'JBK*') to skip entirely. */
   excludeRules?: string[];
-  /** If set, only these rule IDs (or prefix globs) are run. */
+  /**
+   * If set, only these rule IDs (or prefix globs) are run. Defaults to
+   * RUNTIME_DEFAULT_RULES, the rules that apply to message content; the
+   * static code rules (CMD, OUT, AGT, MCP, ...) are not meaningful on chat text.
+   */
   includeRules?: string[];
 }
 
 export interface InspectResult {
   findings: RuntimeFinding[];
-  /** Aggregate risk score, capped at 100. */
+  /** Aggregate risk score (0-100), combined the same way as scan scores. */
   score: number;
   scoreLabel: 'low' | 'medium' | 'high' | 'critical';
   blocked: boolean;
