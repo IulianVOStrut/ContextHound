@@ -7,6 +7,14 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic V
 
 ## [Unreleased]
 
+---
+
+## [2.1.0] - 2026-09-29
+
+First npm release since 1.8.0: it also carries everything listed under 2.0.0,
+which was never published. Upgrading from 1.8.0 picks up both. Review the
+breaking changes below before upgrading CI pipelines.
+
 ### Breaking
 
 - **Invalid configuration is an error.** Unknown options, wrong types,
@@ -35,43 +43,6 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic V
   reason a scan failed.
 - **Finding fingerprints** (rule, path, evidence, occurrence) on every
   finding and as SARIF `partialFingerprints`.
-
-### Fixed
-
-- **`--watch` never reacted to changes**: chokidar 4+ does not expand globs.
-  Watch mode now watches the directory, filters events through the normal
-  include/exclude rules, handles deletions, honours `--format`, and ignores
-  its own report and cache writes.
-- **`formats` and `"cache": false` in the config file were ignored.**
-- **Default scan scope** now covers every supported language (it skipped
-  `.py`, `.go`, `.tsx` and more unless configured) plus `.mts`, `.cts`, `.mjs`
-  and `.cjs`, which were misread as raw prompt text. `hound init` writes the
-  same defaults. Virtualenv, vendor and build directories and ContextHound's
-  own reports are excluded by default, and `--out` paths are never rescanned.
-- **Baselines** match on fingerprints, so a new instance of a rule in an
-  already-baselined file is reported, and baselines now match across machines.
-  Old baselines still load.
-- **`--format jsonl --baseline` streamed already-known findings.**
-- **Status lines polluted JSONL on stdout**; they go to stderr when stdout
-  carries a machine-readable stream.
-- **`--diff` compared against the ref tip** and picked up files that only
-  changed on the target branch; it now uses the merge base and handles
-  unusual file names.
-- **`diff` and `reportUnusedSuppressions` in the config file** were never read.
-- **Scan cache** prunes entries for files that left the scope, writes compact
-  JSON and checks file size as well as mtime.
-- **Formatters are side-effect free**: the CLI, not the Markdown and
-  annotation builders, appends to the GitHub step summary.
-
----
-
-## [2.1.0] - 2026-09-29
-
-First npm release since 1.8.0: it also carries everything listed under 2.0.0,
-which was never published. Upgrading from 1.8.0 picks up both.
-
-### Added
-
 - **`maxFileSize` option.** Files over 1 MiB are skipped by default
   (`--max-file-size <bytes>`, `0` disables). Skipped files are listed on
   stderr and in the JSON report's `skippedFiles`, so padding a file past the
@@ -188,6 +159,30 @@ which was never published. Upgrading from 1.8.0 picks up both.
 
 ### Fixed
 
+- **`--watch` never reacted to changes**: chokidar 4+ does not expand globs.
+  Watch mode now watches the directory, filters events through the normal
+  include/exclude rules, handles deletions, honours `--format`, and ignores
+  its own report and cache writes.
+- **`formats` and `"cache": false` in the config file were ignored.**
+- **Default scan scope** now covers every supported language (it skipped
+  `.py`, `.go`, `.tsx` and more unless configured) plus `.mts`, `.cts`, `.mjs`
+  and `.cjs`, which were misread as raw prompt text. `hound init` writes the
+  same defaults. Virtualenv, vendor and build directories and ContextHound's
+  own reports are excluded by default, and `--out` paths are never rescanned.
+- **Baselines** match on fingerprints, so a new instance of a rule in an
+  already-baselined file is reported, and baselines now match across machines.
+  Old baselines still load.
+- **`--format jsonl --baseline` streamed already-known findings.**
+- **Status lines polluted JSONL on stdout**; they go to stderr when stdout
+  carries a machine-readable stream.
+- **`--diff` compared against the ref tip** and picked up files that only
+  changed on the target branch; it now uses the merge base and handles
+  unusual file names.
+- **`diff` and `reportUnusedSuppressions` in the config file** were never read.
+- **Scan cache** prunes entries for files that left the scope, writes compact
+  JSON and checks file size as well as mtime.
+- **Formatters are side-effect free**: the CLI, not the Markdown and
+  annotation builders, appends to the GitHub step summary.
 - **CLI `--version` and the SARIF driver version** are read from
   `package.json`; they were hard-coded (1.8.0 on npm reports 1.7.0).
 - **`INJ-001` checked the wrong location for delimiters** when a file had two
