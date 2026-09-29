@@ -459,13 +459,22 @@ The runtime guard is available as `require('context-hound/runtime')` and the con
 
 ## Risk Scoring
 
-Each finding carries **risk points** calculated as:
+Each finding carries **risk points**:
 
 ```
 risk_points = severity_weight × confidence_multiplier
 ```
 
-Points are totalled, capped at 100, and classified:
+Severity weights are 50 (critical), 30 (high), 15 (medium) and 5 (low); confidence multiplies by 1.0 (high), 0.75 (medium) or 0.5 (low).
+
+Points are combined, not summed, so scores rise with risk without saturating after a couple of findings:
+
+```
+combine(p1..pn) = 100 × (1 − (1 − p1/100) × … × (1 − pn/100))
+```
+
+- **File score:** each rule counts once per file (at its highest points), and different rules are combined. Two unrelated critical findings in one file score 75.
+- **Repo score:** files are sorted worst first and each further file counts half as much as the one before, so the score reflects how serious the worst problems are rather than how large the repository is.
 
 | Score | Level | Suggested action |
 |-------|-------|-----------------|
@@ -474,7 +483,9 @@ Points are totalled, capped at 100, and classified:
 | 60-79 | 🟠 High | Fix before merging |
 | 80-100 | 🔴 Critical | Block deployment |
 
-If your prompts include explicit safety language (input delimiters, refusal-to-reveal instructions, tool allowlists), risk points for that prompt are reduced proportionally.
+For CI gates, `--fail-on high` (or `critical`) is the most predictable control: it fails on any new finding of that severity regardless of score. The score and `--threshold` are best used as a trend signal.
+
+If your prompts include explicit safety language (input delimiters, refusal-to-reveal instructions, tool allowlists), risk points for the findings those mitigations address are reduced.
 
 ---
 

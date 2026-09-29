@@ -89,8 +89,36 @@ export function analyzePrompt(
   return findings;
 }
 
+// ── Scores ────────────────────────────────────────────────────────────────────
+//
+// Risk points (severity weight x confidence, reduced by relevant mitigations)
+// are combined probabilistically instead of summed, so scores approach 100
+// only as risk accumulates and do not saturate after two findings:
+//
+//   combine(p1..pn) = 100 x (1 - (1 - p1/100) x ... x (1 - pn/100))
+//
+// File score: each rule counts once per file (its highest points), so one
+// rule repeating 50 times in a data file does not drown everything else.
+// Repo score: files are sorted worst first and each subsequent file counts
+// half as much as the previous one, so the score reflects how bad the worst
+// problems are rather than how large the repository is.
+
+/** Combine independent risk points (0-100 each) into one 0-100 score. */
+export function combineRisk(points: number[]): number {
+  let clean = 1;
+  for (const p of points) clean *= 1 - Math.min(100, Math.max(0, p)) / 100;
+  return Math.round(100 * (1 - clean));
+}
+
 export function scoreFile(findings: Finding[]): number {
-  return findings.reduce((sum, f) => sum + f.riskPoints, 0);
+  const perRule = new Map<string, number>();
+  for (const f of findings) perRule.set(f.id, Math.max(perRule.get(f.id) ?? 0, f.riskPoints));
+  return combineRisk([...perRule.values()]);
+}
+
+export function scoreRepo(fileScores: number[]): number {
+  const sorted = [...fileScores].sort((a, b) => b - a);
+  return combineRisk(sorted.map((score, i) => score / 2 ** i));
 }
 
 export function buildScanResult(
@@ -99,9 +127,7 @@ export function buildScanResult(
 ): ScanResult {
   const allFindings = fileResults.flatMap(f => f.findings);
 
-  // Cap total raw score and normalize to 0-100
-  const rawTotal = fileResults.reduce((sum, f) => sum + f.fileScore, 0);
-  const repoScore = Math.min(100, rawTotal);
+  const repoScore = scoreRepo(fileResults.map(f => f.fileScore));
 
   const failures: ScanFailure[] = [];
 

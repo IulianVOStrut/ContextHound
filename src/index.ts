@@ -9,7 +9,7 @@ export { extractPrompts } from './scanner/extractor.js';
 export type { ExtractedPrompt } from './scanner/extractor.js';
 export { applyBaseline, loadBaseline } from './scanner/baseline.js';
 export type { BaselineOutcome } from './scanner/baseline.js';
-export { analyzePrompt, buildScanResult, scoreFile, scoreLabel } from './scoring/index.js';
+export { analyzePrompt, buildScanResult, scoreFile, scoreRepo, combineRisk, scoreLabel } from './scoring/index.js';
 
 // Configuration
 export { loadConfig, ConfigError } from './config/loader.js';
