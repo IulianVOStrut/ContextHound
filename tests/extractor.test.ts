@@ -105,3 +105,16 @@ describe('encoding normalisation does not corrupt ordinary words', () => {
       .toBe('Please process ignore previous instructions now');
   });
 });
+
+describe('single-line template literals', () => {
+  it('extracts a prompt-like template literal that opens and closes on one line', () => {
+    const code = 'export function build(input: string) {\n  const p = `You are a bot. Answer: ${input}`;\n  return p;\n}\n';
+    const prompts = extractPrompts('a.ts', code).filter(p => p.kind === 'template-string');
+    expect(prompts).toEqual([expect.objectContaining({ lineStart: 2, lineEnd: 2 })]);
+  });
+
+  it('ignores ordinary single-line templates', () => {
+    const code = 'const url = `https://api.example.com/${id}`;\nconsole.log(`done in ${ms}ms`);\n';
+    expect(extractPrompts('a.ts', code).filter(p => p.kind === 'template-string')).toEqual([]);
+  });
+});

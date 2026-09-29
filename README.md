@@ -340,6 +340,7 @@ context.push(doc.metadata.author);
 - `hound-disable-line [RULE...]` — suppress findings on the same line
 - `hound-disable-next-line [RULE...]` — suppress findings on the following line
 - `hound-disable [RULE...]` … `hound-enable [RULE...]` — suppress a block (auto-closed at end of file)
+- `hound-disable-file [RULE...]` anywhere in a file: suppress findings throughout that file (for example a collection of attack samples)
 - Omit rule IDs to suppress **all** rules at that location; list one or more (space/comma separated) to scope it
 - Text after `--` is a free-form justification, surfaced in reports
 

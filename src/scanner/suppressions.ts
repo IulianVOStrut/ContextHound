@@ -11,12 +11,13 @@ import type { Finding } from '../types.js';
 //   hound-disable-next-line [RULE...] [-- reason] suppress findings on the next line
 //   hound-disable [RULE...] [-- reason]           open a block suppression
 //   hound-enable [RULE...]                         close a block suppression
+//   hound-disable-file [RULE...] [-- reason]      suppress findings anywhere in the file
 //
 // When no rule IDs are listed, the directive suppresses *all* rules at that
 // location. A block left open is implicitly closed at end of file.
 
 export interface SuppressionDirective {
-  type: 'line' | 'next-line' | 'block';
+  type: 'line' | 'next-line' | 'block' | 'file';
   /** 1-based source line the directive comment appears on. */
   declaredLine: number;
   /** Inclusive 1-based source line range this directive covers. */
@@ -29,14 +30,15 @@ export interface SuppressionDirective {
   used: boolean;
 }
 
-const DIRECTIVE_RE = /hound-(disable-next-line|disable-line|disable|enable)\b([^\n]*)/i;
+const DIRECTIVE_RE = /hound-(disable-next-line|disable-line|disable-file|disable|enable)\b([^\n]*)/i;
 const RULE_ID_RE = /[A-Za-z][A-Za-z0-9]*-\d+/g;
 
 function parseTail(tail: string): { ruleIds: string[] | null; reason?: string } {
   // A `--` separates the optional human-readable reason from the rule list.
   const sepIdx = tail.indexOf('--');
-  const idsPart = sepIdx === -1 ? tail : tail.slice(0, sepIdx);
-  const reasonRaw = sepIdx === -1 ? '' : tail.slice(sepIdx + 2).trim();
+  const idsPart = (sepIdx === -1 ? tail : tail.slice(0, sepIdx)).replace(/(?:-->|\*\/|#\}|%>)\s*$/, '');
+  // Drop a trailing comment terminator (-->, */, #}, %>) left over from the host comment.
+  const reasonRaw = sepIdx === -1 ? '' : tail.slice(sepIdx + 2).replace(/\s*(?:-->|\*\/|#\}|%>)\s*$/, '').trim();
   const ids = idsPart.match(RULE_ID_RE)?.map(s => s.toUpperCase()) ?? [];
   return {
     ruleIds: ids.length > 0 ? ids : null,
@@ -61,6 +63,8 @@ export function parseSuppressions(content: string): SuppressionDirective[] {
       directives.push({ type: 'line', declaredLine: lineNo, startLine: lineNo, endLine: lineNo, ruleIds, reason, used: false });
     } else if (kind === 'disable-next-line') {
       directives.push({ type: 'next-line', declaredLine: lineNo, startLine: lineNo + 1, endLine: lineNo + 1, ruleIds, reason, used: false });
+    } else if (kind === 'disable-file') {
+      directives.push({ type: 'file', declaredLine: lineNo, startLine: 1, endLine: lines.length, ruleIds, reason, used: false });
     } else if (kind === 'disable') {
       const d: SuppressionDirective = { type: 'block', declaredLine: lineNo, startLine: lineNo, endLine: lines.length, ruleIds, reason, used: false };
       directives.push(d);

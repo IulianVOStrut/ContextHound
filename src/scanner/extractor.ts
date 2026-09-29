@@ -313,6 +313,17 @@ function extractFromCode(content: string, _filePath: string): ExtractedPrompt[] 
       }
     }
 
+    // Complete template literals on a single line. Only multi-line ones were
+    // extracted before, so `const p = \`You are a bot. ${input}\`;` was missed.
+    if (!inTemplateLiteral && backtickCount >= 2 && backtickCount % 2 === 0) {
+      for (const m of line.matchAll(/`(?:[^`\\]|\\.)*`/g)) {
+        if (SYSTEM_PHRASE_PATTERN.test(m[0]) || PROMPT_KEY_PATTERN.test(m[0])) {
+          results.push({ text: line, lineStart: i + 1, lineEnd: i + 1, kind: 'template-string' });
+          break;
+        }
+      }
+    }
+
     // Detect OpenAI-style chat messages {role, content}
     if (ROLE_CONTENT_PATTERN.test(line)) {
       const start = i;

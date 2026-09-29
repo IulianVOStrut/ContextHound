@@ -123,3 +123,26 @@ describe('runScan integration', () => {
     expect(result.unusedSuppressions![0]).toMatchObject({ line: 1, ruleIds: ['INJ-001'], reason: 'nothing here' });
   });
 });
+
+describe('hound-disable-file', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { parseSuppressions: parse, applySuppressions: apply } = require('../src/scanner/suppressions') as typeof import('../src/scanner/suppressions');
+  const f = (id: string, line: number) => ({
+    id, title: 't', severity: 'high' as const, confidence: 'high' as const, evidence: 'e',
+    file: 'a.md', lineStart: line, lineEnd: line, remediation: '-', riskPoints: 30,
+  });
+
+  it('suppresses the listed rules anywhere in the file, before or after the directive', () => {
+    const content = 'line one\nline two\n<!-- hound-disable-file JBK-001 -- attack examples for our test suite -->\nline four';
+    const directives = parse(content);
+    expect(directives[0]).toMatchObject({ type: 'file', startLine: 1, endLine: 4, ruleIds: ['JBK-001'], reason: 'attack examples for our test suite' });
+    const { kept, suppressedCount } = apply([f('JBK-001', 1), f('JBK-001', 4), f('EXF-001', 2)], directives);
+    expect(suppressedCount).toBe(2);
+    expect(kept.map(k => k.id)).toEqual(['EXF-001']);
+  });
+
+  it('suppresses every rule when no IDs are given', () => {
+    const { kept } = apply([f('JBK-001', 1), f('EXF-001', 9)], parse('# hound-disable-file\n' + 'x\n'.repeat(9)));
+    expect(kept).toEqual([]);
+  });
+});

@@ -1,5 +1,6 @@
 import path from 'path';
 import type { Rule, RuleMatch } from './types.js';
+import { firstMatchingLine } from './types.js';
 import type { ExtractedPrompt } from '../scanner/extractor.js';
 
 function matchPattern(prompt: ExtractedPrompt, pattern: RegExp): RuleMatch[] {
@@ -147,18 +148,15 @@ export const commandInjectionRules: Rule[] = [
         /includes\s*\(\s*['"`]`['"`]\s*\)/.test(text) ||
         /indexOf\s*\(\s*['"`]`['"`]/.test(text);
 
+      // Report the line holding the partial filter.
+      const filterLine = (pattern: RegExp, note: string) => {
+        const m = firstMatchingLine(prompt, pattern);
+        if (m) results.push({ ...m, evidence: `${note}: ${m.evidence}` });
+      };
       if (blocksDollarParen && !blocksBacktick) {
-        results.push({
-          evidence: 'Filters $() command substitution but not backtick substitution',
-          lineStart: prompt.lineStart,
-          lineEnd: prompt.lineEnd,
-        });
+        filterLine(/(?:includes|indexOf)\s*\(\s*['"`]\$\(/, 'Filters $() but not backticks');
       } else if (blocksBacktick && !blocksDollarParen) {
-        results.push({
-          evidence: 'Filters backtick command substitution but not $() substitution',
-          lineStart: prompt.lineStart,
-          lineEnd: prompt.lineEnd,
-        });
+        filterLine(/(?:includes|indexOf)\s*\(\s*['"`]`['"`]/, 'Filters backticks but not $()');
       }
 
       return results;
