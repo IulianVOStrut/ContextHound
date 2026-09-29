@@ -1,4 +1,3 @@
-import fs from 'fs';
 import type { ScanResult, Severity } from '../types.js';
 import { escapeHtml, escapeMarkdownCell, markdownCode } from './sanitize.js';
 
@@ -65,13 +64,5 @@ export function buildMarkdownReport(result: ScanResult): string {
     }
   }
 
-  const output = lines.join('\n');
-
-  // Write to GITHUB_STEP_SUMMARY if available
-  const summaryPath = process.env.GITHUB_STEP_SUMMARY;
-  if (summaryPath) {
-    fs.appendFileSync(summaryPath, output + '\n', 'utf8');
-  }
-
-  return output;
+  return lines.join('\n');
 }

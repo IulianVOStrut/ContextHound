@@ -5,6 +5,7 @@ import path from 'path';
 import { loadConfig, ConfigError, parseEnumOption, parseIntegerOption } from './config/loader.js';
 import { OUTPUT_FORMATS, FAIL_ON_LEVELS, CONFIDENCE_LEVELS } from './config/schema.js';
 import { runScan } from './scanner/pipeline.js';
+import { discoverFiles } from './scanner/discover.js';
 import { resolveDiffRef } from './scanner/gitDiff.js';
 import { applyBaseline, loadBaseline } from './scanner/baseline.js';
 import { createPathMapper } from './scanner/paths.js';
@@ -12,17 +13,17 @@ import { PRESETS, resolvePresets } from './config/presets.js';
 import { printConsoleReport } from './report/console.js';
 import { buildJsonReport } from './report/json.js';
 import { buildSarifReport } from './report/sarif.js';
-import { buildGithubAnnotationsReport } from './report/githubAnnotations.js';
+import { buildGithubAnnotationsReport, buildStepSummary } from './report/githubAnnotations.js';
 import { buildMarkdownReport } from './report/markdown.js';
-import { buildJsonlReport } from './report/jsonl.js';
 import { buildHtmlReport } from './report/html.js';
+import { buildJsonlReport } from './report/jsonl.js';
 import { buildCsvReport } from './report/csv.js';
 import { buildJunitReport } from './report/junit.js';
 import { toTerminalSafe } from './report/sanitize.js';
 import { allRules } from './rules/index.js';
 import { VERSION } from './version.js';
 import { DEFAULT_MAX_FILE_SIZE, DEFAULT_INCLUDE_GLOBS, DEFAULT_EXCLUDE_GLOBS } from './config/defaults.js';
-import type { AuditConfig, OutputFormat, Finding } from './types.js';
+import type { AuditConfig, OutputFormat, ScanResult } from './types.js';
 
 const program = new Command();
 
@@ -265,139 +266,20 @@ program
 
     // ── --watch mode ──────────────────────────────────────────────────────
     if (opts.watch) {
-      await runWatchMode(cwd, config, formats);
+      await runWatchMode(cwd, config, status);
       return;
     }
 
     // ── Single scan ───────────────────────────────────────────────────────
-    let result;
-    const jsonlLines: string[] = [];
-    const onFinding = formats.includes('jsonl')
-      ? (f: Finding) => { jsonlLines.push(JSON.stringify(f)); }
-      : undefined;
-
+    let result: ScanResult;
     try {
-      result = await runScan(cwd, config, onFinding);
+      result = await scanWithBaseline(cwd, config, status);
     } catch (err) {
       console.error('Error during scan:', err);
       process.exit(1);
     }
 
-    // ── Baseline diff ─────────────────────────────────────────────────────
-    if (config.baseline) {
-      const baselineFindings = loadBaseline(config.baseline);
-      if (baselineFindings === null) {
-        console.warn(`Warning: could not load baseline from ${config.baseline}; reporting all findings`);
-      } else {
-        const outcome = applyBaseline(result, baselineFindings, config, createPathMapper(cwd).toReport);
-        result = outcome.result;
-        status(`Baseline: ${outcome.known} known · ${outcome.added} new · ${outcome.resolved} resolved`);
-      }
-    }
-
-    // Console report always prints (unless only jsonl/json/sarif requested)
-    if (formats.includes('console') || formats.length === 0) {
-      printConsoleReport(result, config.verbose);
-    }
-
-    // Oversized files are reported on stderr so machine-readable stdout stays clean,
-    // and so padding a file past the limit cannot silently hide it.
-    if (result.skippedFiles?.length) {
-      const limit = config.maxFileSize ?? DEFAULT_MAX_FILE_SIZE;
-      console.warn(`Skipped ${result.skippedFiles.length} file(s) larger than ${limit} bytes (raise with --max-file-size):`);
-      for (const s of result.skippedFiles) {
-        console.warn(`  ${toTerminalSafe(s.file)} (${s.size} bytes)`);
-      }
-    }
-
-    // Inline-suppression summary
-    if (result.suppressedCount) {
-      status(`Suppressed: ${result.suppressedCount} finding(s) via inline hound-disable comments`);
-    }
-    if (config.reportUnusedSuppressions && result.unusedSuppressions?.length) {
-      status(`\nUnused suppressions (${result.unusedSuppressions.length}), matched no finding:`);
-      for (const u of result.unusedSuppressions) {
-        const scope = u.ruleIds ? u.ruleIds.join(',') : 'all rules';
-        status(`  ${toTerminalSafe(u.file)}:${u.line}  [${scope}]${u.reason ? `  (${toTerminalSafe(u.reason)})` : ''}`);
-      }
-    }
-
-    // JSON report
-    if (formats.includes('json')) {
-      const json = buildJsonReport(result);
-      const outPath = config.out ? `${config.out}.json` : path.join(cwd, 'hound-results.json');
-      fs.writeFileSync(outPath, json, 'utf8');
-      status(`JSON report written to: ${outPath}`);
-    }
-
-    // SARIF report
-    if (formats.includes('sarif')) {
-      const sarif = buildSarifReport(result);
-      const outPath = config.out
-        ? (config.out.endsWith('.sarif') ? config.out : `${config.out}.sarif`)
-        : path.join(cwd, 'results.sarif');
-      fs.writeFileSync(outPath, sarif, 'utf8');
-      status(`SARIF report written to: ${outPath}`);
-    }
-
-    // GitHub Annotations formatter
-    if (formats.includes('github-annotations')) {
-      const annotations = buildGithubAnnotationsReport(result);
-      if (annotations) console.log(annotations);
-    }
-
-    // Markdown report
-    if (formats.includes('markdown')) {
-      const md = buildMarkdownReport(result);
-      const outPath = config.out
-        ? (config.out.endsWith('.md') ? config.out : `${config.out}.md`)
-        : path.join(cwd, 'hound-report.md');
-      fs.writeFileSync(outPath, md, 'utf8');
-      status(`Markdown report written to: ${outPath}`);
-    }
-
-    // HTML report
-    if (formats.includes('html')) {
-      const html = buildHtmlReport(result);
-      const outPath = config.out
-        ? (config.out.endsWith('.html') ? config.out : `${config.out}.html`)
-        : path.join(cwd, 'hound-report.html');
-      fs.writeFileSync(outPath, html, 'utf8');
-      status(`HTML report written to: ${outPath}`);
-    }
-
-    // CSV report
-    if (formats.includes('csv')) {
-      const csv = buildCsvReport(result);
-      const outPath = config.out
-        ? (config.out.endsWith('.csv') ? config.out : `${config.out}.csv`)
-        : path.join(cwd, 'hound-report.csv');
-      fs.writeFileSync(outPath, csv, 'utf8');
-      status(`CSV report written to: ${outPath}`);
-    }
-
-    // JUnit XML report
-    if (formats.includes('junit')) {
-      const junit = buildJunitReport(result);
-      const outPath = config.out
-        ? (config.out.endsWith('.xml') ? config.out : `${config.out}.xml`)
-        : path.join(cwd, 'hound-report.xml');
-      fs.writeFileSync(outPath, junit, 'utf8');
-      status(`JUnit XML report written to: ${outPath}`);
-    }
-
-    // JSONL report (findings already streamed; write to file if --out set)
-    if (formats.includes('jsonl')) {
-      const jsonlOutput = jsonlLines.join('\n');
-      if (config.out) {
-        const outPath = config.out.endsWith('.jsonl') ? config.out : `${config.out}.jsonl`;
-        fs.writeFileSync(outPath, jsonlOutput, 'utf8');
-        status(`JSONL report written to: ${outPath}`);
-      } else {
-        // Stream to stdout
-        if (jsonlLines.length > 0) console.log(jsonlOutput);
-      }
-    }
+    emitReports(result, config, cwd, status);
 
     // Exit codes: 0 passed, 1 error or bad arguments, 2 threshold or file
     // threshold breached, 3 fail-on violation (takes precedence).
@@ -407,66 +289,179 @@ program
     process.exit(0);
   });
 
-// ── watch mode implementation ─────────────────────────────────────────────────
+// ── scanning and report output ────────────────────────────────────────────────
 
-async function runWatchMode(cwd: string, config: AuditConfig, formats: OutputFormat[]): Promise<void> {
-  const chokidar = await import('chokidar');
+type StatusLogger = (message: string) => void;
 
-  // Initial full scan
-  let result = await runScan(cwd, config);
-  printConsoleReport(result, config.verbose);
+async function scanWithBaseline(cwd: string, config: AuditConfig, status: StatusLogger): Promise<ScanResult> {
+  const result = await runScan(cwd, config);
+  if (!config.baseline) return result;
+  const baselineFindings = loadBaseline(config.baseline);
+  if (baselineFindings === null) {
+    console.warn(`Warning: could not load baseline from ${config.baseline}; reporting all findings`);
+    return result;
+  }
+  const outcome = applyBaseline(result, baselineFindings, config, createPathMapper(cwd).toReport);
+  status(`Baseline: ${outcome.known} known · ${outcome.added} new · ${outcome.resolved} resolved`);
+  return outcome.result;
+}
 
-  // Track findings by file for delta detection
-  const paths = createPathMapper(cwd);
-  const prevFindings = new Map<string, string[]>();
-  for (const fr of result.files) {
-    prevFindings.set(fr.file, fr.findings.map(f => `${f.id}:${f.lineStart}`));
+/** Absolute paths of every report file the current config writes. */
+function reportPaths(config: AuditConfig, cwd: string): Partial<Record<OutputFormat, string>> {
+  const withExt = (ext: string, fallback: string) =>
+    config.out ? path.resolve(cwd, config.out.endsWith(ext) ? config.out : `${config.out}${ext}`) : path.join(cwd, fallback);
+  return {
+    json: config.out ? path.resolve(cwd, `${config.out}.json`) : path.join(cwd, 'hound-results.json'),
+    sarif: withExt('.sarif', 'results.sarif'),
+    markdown: withExt('.md', 'hound-report.md'),
+    html: withExt('.html', 'hound-report.html'),
+    csv: withExt('.csv', 'hound-report.csv'),
+    junit: withExt('.xml', 'hound-report.xml'),
+    ...(config.out && { jsonl: withExt('.jsonl', 'hound-results.jsonl') }),
+  };
+}
+
+const FILE_BUILDERS: Partial<Record<OutputFormat, [string, (r: ScanResult) => string]>> = {
+  json: ['JSON', buildJsonReport],
+  sarif: ['SARIF', buildSarifReport],
+  markdown: ['Markdown', buildMarkdownReport],
+  html: ['HTML', buildHtmlReport],
+  csv: ['CSV', buildCsvReport],
+  junit: ['JUnit XML', buildJunitReport],
+  jsonl: ['JSONL', buildJsonlReport],
+};
+
+function emitReports(result: ScanResult, config: AuditConfig, cwd: string, status: StatusLogger): void {
+  const formats = config.formats;
+
+  if (formats.includes('console')) printConsoleReport(result, config.verbose);
+
+  // Oversized files are reported on stderr so machine-readable stdout stays clean,
+  // and so padding a file past the limit cannot silently hide it.
+  if (result.skippedFiles?.length) {
+    const limit = config.maxFileSize ?? DEFAULT_MAX_FILE_SIZE;
+    console.warn(`Skipped ${result.skippedFiles.length} file(s) larger than ${limit} bytes (raise with --max-file-size):`);
+    for (const s of result.skippedFiles) console.warn(`  ${toTerminalSafe(s.file)} (${s.size} bytes)`);
   }
 
-  console.log('\n[watching for changes… Ctrl+C to exit]\n');
+  if (result.suppressedCount) {
+    status(`Suppressed: ${result.suppressedCount} finding(s) via inline hound-disable comments`);
+  }
+  if (config.reportUnusedSuppressions && result.unusedSuppressions?.length) {
+    status(`\nUnused suppressions (${result.unusedSuppressions.length}), matched no finding:`);
+    for (const u of result.unusedSuppressions) {
+      const scope = u.ruleIds ? u.ruleIds.join(',') : 'all rules';
+      status(`  ${toTerminalSafe(u.file)}:${u.line}  [${scope}]${u.reason ? `  (${toTerminalSafe(u.reason)})` : ''}`);
+    }
+  }
 
-  const watcher = chokidar.watch(config.include.map(g => path.join(cwd, g)), {
-    cwd,
-    ignored: config.exclude,
-    ignoreInitial: true,
-    persistent: true,
-  });
+  const paths = reportPaths(config, cwd);
+  for (const format of formats) {
+    const builder = FILE_BUILDERS[format];
+    const outPath = paths[format];
+    if (!builder || !outPath) continue;
+    fs.writeFileSync(outPath, builder[1](result), 'utf8');
+    status(`${builder[0]} report written to: ${outPath}`);
+  }
 
-  const handleChange = async (filePath: string) => {
-    const absPath = path.isAbsolute(filePath) ? filePath : path.join(cwd, filePath);
-    const reportPath = paths.toReport(absPath);
-    console.log(`\n[changed] ${toTerminalSafe(reportPath)}`);
+  // Formats written to stdout. JSONL is built from the final result, so
+  // findings already in a baseline are not streamed.
+  if (formats.includes('jsonl') && !config.out && result.allFindings.length > 0) {
+    console.log(buildJsonlReport(result));
+  }
+  if (formats.includes('github-annotations')) {
+    const annotations = buildGithubAnnotationsReport(result);
+    if (annotations) console.log(annotations);
+  }
+
+  const summaryPath = process.env.GITHUB_STEP_SUMMARY;
+  if (summaryPath) {
+    if (formats.includes('github-annotations')) fs.appendFileSync(summaryPath, `\n${buildStepSummary(result)}\n`, 'utf8');
+    if (formats.includes('markdown')) fs.appendFileSync(summaryPath, `\n${buildMarkdownReport(result)}\n`, 'utf8');
+  }
+}
+
+// ── watch mode implementation ─────────────────────────────────────────────────
+
+// Directories never worth watching; include/exclude decide the rest.
+const WATCH_IGNORED_DIRS = /(^|[\\/])(node_modules|\.git|\.venv|venv|__pycache__)([\\/]|$)/;
+
+async function runWatchMode(cwd: string, config: AuditConfig, status: StatusLogger): Promise<void> {
+  const chokidar = await import('chokidar');
+  const paths = createPathMapper(cwd);
+
+  // Our own writes (cache and reports) must not trigger another rescan.
+  const ownOutputs = new Set<string>([
+    path.join(cwd, '.hound-cache.json'),
+    ...Object.values(reportPaths(config, cwd)).filter((p): p is string => !!p),
+  ]);
+
+  const findingKeys = (r: ScanResult) =>
+    new Map(r.files.map(fr => [fr.file, new Set(fr.findings.map(f => f.fingerprint ?? `${f.id}:${f.lineStart}`))]));
+
+  let result = await scanWithBaseline(cwd, config, status);
+  emitReports(result, config, cwd, status);
+  let previous = findingKeys(result);
+
+  const banner = () => status('\n[watching for changes, Ctrl+C to exit]\n');
+
+  const pending = new Set<string>();
+  let timer: NodeJS.Timeout | undefined;
+  let running = Promise.resolve();
+
+  const flush = async () => {
+    const changed = [...pending];
+    pending.clear();
+    // Only rescan for files in scope (or previously reported, which covers deletions).
+    const inScope = new Set(await discoverFiles(cwd, config));
+    const relevant = changed.filter(p => inScope.has(p) || previous.has(paths.toReport(p)));
+    if (relevant.length === 0) return;
 
     try {
-      result = await runScan(cwd, config);
-      printConsoleReport(result, config.verbose);
-
-      // Show delta for changed file
-      const newFr = result.files.find(f => f.file === reportPath);
-      const newKeys = newFr ? newFr.findings.map(f => `${f.id}:${f.lineStart}`) : [];
-      const oldKeys = prevFindings.get(reportPath) ?? [];
-      const added = newKeys.filter(k => !oldKeys.includes(k));
-      const removed = oldKeys.filter(k => !newKeys.includes(k));
-      if (added.length > 0) console.log(`  +${added.length} new finding(s)`);
-      if (removed.length > 0) console.log(`  -${removed.length} resolved finding(s)`);
-      prevFindings.set(reportPath, newKeys);
+      result = await scanWithBaseline(cwd, config, status);
+      emitReports(result, config, cwd, status);
+      const current = findingKeys(result);
+      for (const abs of relevant) {
+        const rel = paths.toReport(abs);
+        const before = previous.get(rel) ?? new Set<string>();
+        const after = current.get(rel) ?? new Set<string>();
+        const added = [...after].filter(k => !before.has(k)).length;
+        const resolved = [...before].filter(k => !after.has(k)).length;
+        status(`[changed] ${toTerminalSafe(rel)}: +${added} new, -${resolved} resolved`);
+      }
+      previous = current;
     } catch (err) {
       console.error('Error during re-scan:', err);
     }
-
-    console.log('\n[watching for changes… Ctrl+C to exit]\n');
+    banner();
   };
 
-  watcher.on('change', handleChange);
-  watcher.on('add', handleChange);
+  const onEvent = (filePath: string) => {
+    const abs = path.resolve(cwd, filePath);
+    if (ownOutputs.has(abs)) return;
+    pending.add(abs);
+    clearTimeout(timer);
+    timer = setTimeout(() => { running = running.then(flush); }, 150);
+  };
 
-  // Keep process alive
+  // chokidar 4+ does not expand globs, so watch the directory and filter
+  // events through the same include/exclude discovery the scanner uses.
+  const watcher = chokidar.watch(cwd, {
+    ignoreInitial: true,
+    persistent: true,
+    ignored: (p: string) => WATCH_IGNORED_DIRS.test(path.relative(cwd, p)),
+  });
+  watcher.on('add', onEvent);
+  watcher.on('change', onEvent);
+  watcher.on('unlink', onEvent);
+  // Announce only once the initial crawl is done; before that, changes can be missed.
+  await new Promise<void>(resolve => watcher.once('ready', () => resolve()));
+  banner();
+
   process.on('SIGINT', async () => {
     await watcher.close();
     process.exit(0);
   });
-
-  void formats; // suppress unused warning
 }
 
 // ── config assembly ───────────────────────────────────────────────────────────

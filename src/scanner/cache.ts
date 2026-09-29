@@ -6,11 +6,12 @@ import type { Rule } from '../rules/types.js';
 
 // Bump when the cache file layout changes. Combined with the ruleset/config
 // hash below to form the stored `version`, so old-format caches are discarded.
-const CACHE_FORMAT_VERSION = '2';
+const CACHE_FORMAT_VERSION = '3';
 const CACHE_FILENAME = '.hound-cache.json';
 
 interface CacheEntry {
   mtime: number;
+  size: number;
   findings: Finding[];
 }
 
@@ -61,10 +62,21 @@ export function loadCache(cwd: string, signature: string): HoundCache {
   }
 }
 
-export function saveCache(cwd: string, cache: HoundCache): void {
+/**
+ * Write the cache. When `liveFiles` is given, entries for files outside it
+ * (deleted, renamed or now excluded) are dropped so the cache cannot grow
+ * without bound.
+ */
+export function saveCache(cwd: string, cache: HoundCache, liveFiles?: Iterable<string>): void {
   const cachePath = path.join(cwd, CACHE_FILENAME);
+  if (liveFiles) {
+    const live = new Set(liveFiles);
+    for (const file of Object.keys(cache.entries)) {
+      if (!live.has(file)) delete cache.entries[file];
+    }
+  }
   try {
-    fs.writeFileSync(cachePath, JSON.stringify(cache, null, 2), 'utf8');
+    fs.writeFileSync(cachePath, JSON.stringify(cache), 'utf8');
   } catch {
     // Cache write failures are non-fatal
   }
@@ -74,8 +86,8 @@ export function getCachedFindings(cache: HoundCache, filePath: string): Finding[
   const entry = cache.entries[filePath];
   if (!entry) return null;
   try {
-    const mtime = fs.statSync(filePath).mtimeMs;
-    if (mtime === entry.mtime) return entry.findings;
+    const stat = fs.statSync(filePath);
+    if (stat.mtimeMs === entry.mtime && stat.size === entry.size) return entry.findings;
   } catch {
     // File may have been deleted; treat as cache miss
   }
@@ -84,8 +96,8 @@ export function getCachedFindings(cache: HoundCache, filePath: string): Finding[
 
 export function setCacheEntry(cache: HoundCache, filePath: string, findings: Finding[]): void {
   try {
-    const mtime = fs.statSync(filePath).mtimeMs;
-    cache.entries[filePath] = { mtime, findings };
+    const stat = fs.statSync(filePath);
+    cache.entries[filePath] = { mtime: stat.mtimeMs, size: stat.size, findings };
   } catch {
     // If stat fails, skip caching this file
   }

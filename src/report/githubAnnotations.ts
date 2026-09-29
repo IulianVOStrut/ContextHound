@@ -1,4 +1,3 @@
-import fs from 'fs';
 import type { ScanResult, Severity } from '../types.js';
 import { escapeAnnotationData, escapeAnnotationProperty } from './sanitize.js';
 
@@ -21,25 +20,21 @@ export function buildGithubAnnotationsReport(result: ScanResult): string {
     );
   }
 
-  const output = lines.join('\n');
+  return lines.join('\n');
+}
 
-  // Append markdown summary to GITHUB_STEP_SUMMARY if available
-  const summaryPath = process.env.GITHUB_STEP_SUMMARY;
-  if (summaryPath) {
-    const table = [
-      '## ContextHound Scan Summary',
-      '',
-      `**Score:** ${result.repoScore}/100 (${result.scoreLabel.toUpperCase()}) — ${result.passed ? '✅ PASSED' : '❌ FAILED'}`,
-      '',
-      '| Severity | Count |',
-      '|----------|-------|',
-      ...(['critical', 'high', 'medium', 'low'] as Severity[]).map(s => {
-        const count = result.allFindings.filter(f => f.severity === s).length;
-        return `| ${s} | ${count} |`;
-      }),
-    ].join('\n');
-    fs.appendFileSync(summaryPath, '\n' + table + '\n');
-  }
-
-  return output;
+/** Markdown summary table for the GitHub Actions step summary. */
+export function buildStepSummary(result: ScanResult): string {
+  return [
+    '## ContextHound Scan Summary',
+    '',
+    `**Score:** ${result.repoScore}/100 (${result.scoreLabel.toUpperCase()}): ${result.passed ? '✅ PASSED' : '❌ FAILED'}`,
+    '',
+    '| Severity | Count |',
+    '|----------|-------|',
+    ...(['critical', 'high', 'medium', 'low'] as Severity[]).map(s => {
+      const count = result.allFindings.filter(f => f.severity === s).length;
+      return `| ${s} | ${count} |`;
+    }),
+  ].join('\n');
 }

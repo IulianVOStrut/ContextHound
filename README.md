@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/IulianVOStrut/ContextHound/actions/workflows/context-hound.yml/badge.svg)](https://github.com/IulianVOStrut/ContextHound/actions/workflows/context-hound.yml)
 [![npm](https://img.shields.io/npm/v/context-hound)](https://www.npmjs.com/package/context-hound)
-[![Node.js](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](https://nodejs.org)
+[![Node.js](https://img.shields.io/badge/node-%3E%3D20.19-brightgreen)](https://nodejs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.3-blue)](https://www.typescriptlang.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -430,6 +430,21 @@ hound scan --diff HEAD~5        # vs. an arbitrary ref
 
 Covers committed, staged, unstaged, and untracked-but-not-ignored files. If git is unavailable or the ref can't be resolved (e.g. a shallow CI clone), ContextHound prints a warning and falls back to a full scan rather than silently passing. Combine with `--baseline` for findings-level diffing, or use `--diff` alone for the fastest PR feedback.
 
+### Library usage
+
+ContextHound can also be used from Node.js. Importing it has no side effects, and every formatter returns a string without writing files:
+
+```js
+const { loadConfig, runScan, buildSarifReport } = require('context-hound');
+
+const config = loadConfig(undefined, process.cwd());
+const result = await runScan(process.cwd(), config);
+console.log(result.repoScore, result.passed, result.failures);
+fs.writeFileSync('results.sarif', buildSarifReport(result));
+```
+
+The runtime guard is available as `require('context-hound/runtime')` and the config JSON Schema as `context-hound/schema.json`.
+
 ---
 
 ## Risk Scoring
@@ -664,19 +679,29 @@ By severity: critical: 2  high: 2  medium: 1
 ```
 src/
 ├── cli.ts                  # CLI entry point (Commander.js)
+├── index.ts                # Library entry point (require('context-hound'))
+├── version.ts              # Version read from package.json
 ├── types.ts                # Shared TypeScript types
 ├── config/
 │   ├── defaults.ts         # Default include/exclude globs and settings
-│   └── loader.ts           # .contexthoundrc.json loader + env var overrides
+│   ├── loader.ts           # .contexthoundrc.json loader, env var overrides, option parsing
+│   ├── schema.ts           # Config spec: validator and JSON Schema generator
+│   └── presets.ts          # Rule presets (--preset)
 ├── scanner/
 │   ├── discover.ts         # File discovery via fast-glob
 │   ├── extractor.ts        # Prompt extraction (raw, code, structured)
 │   ├── languages.ts        # LLM API trigger patterns per language extension
 │   ├── cache.ts            # Incremental scan cache (.hound-cache.json)
+│   ├── suppressions.ts     # Inline hound-disable directives
+│   ├── gitDiff.ts          # Changed files for --diff (merge base)
+│   ├── paths.ts            # Portable, repository-relative report paths
+│   ├── fingerprint.ts      # Stable finding fingerprints
+│   ├── baseline.ts         # Baseline comparison (--baseline)
 │   └── pipeline.ts         # Orchestrates the full scan; parallel + cache + plugins
 ├── rules/
 │   ├── types.ts            # Rule interface and scoring helpers
 │   ├── injection.ts        # INJ-* rules
+│   ├── taint.ts            # INJ-015 taint analysis
 │   ├── exfiltration.ts     # EXF-* rules
 │   ├── jailbreak.ts        # JBK-* rules
 │   ├── unsafeTools.ts      # TOOL-* rules
@@ -690,22 +715,28 @@ src/
 │   ├── mcp.ts              # MCP-* rules
 │   ├── supplyChain.ts      # SCH-* rules
 │   ├── dos.ts              # DOS-* rules
+│   ├── persistence.ts      # PST-* rules
 │   ├── mitigation.ts       # Mitigation presence detection
 │   └── index.ts            # Rule registry
 ├── runtime/
-│   ├── index.ts            # createGuard() — runtime message inspection API
+│   ├── index.ts            # createGuard(): runtime message inspection API
 │   ├── inspect.ts          # Core inspection logic for live message arrays
 │   └── types.ts            # RuntimeMessage, InspectResult, GuardConfig types
 ├── scoring/
-│   └── index.ts            # Risk score calculation and rule filtering
+│   └── index.ts            # Risk score, gates and rule filtering
 └── report/
     ├── console.ts          # ANSI-coloured terminal output
     ├── json.ts             # JSON report builder
+    ├── jsonl.ts            # JSONL formatter
     ├── sarif.ts            # SARIF 2.1.0 report builder
-    ├── githubAnnotations.ts# GitHub Actions annotation formatter
+    ├── githubAnnotations.ts# GitHub Actions annotations and step summary
     ├── markdown.ts         # Markdown report with findings tables
-    ├── jsonl.ts            # JSONL streaming formatter
-    └── html.ts             # Self-contained interactive HTML report
+    ├── html.ts             # Self-contained interactive HTML report
+    ├── csv.ts              # CSV report
+    ├── junit.ts            # JUnit XML report
+    └── sanitize.ts         # Escaping for untrusted scanned content
+schema/
+└── contexthoundrc.schema.json  # JSON Schema for the config file (npm run schema)
 attacks/                    # Example injection strings (not executed against models)
 tests/
 ├── fixtures/               # Sample prompts for testing

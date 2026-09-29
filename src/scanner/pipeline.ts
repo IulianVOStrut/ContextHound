@@ -56,7 +56,6 @@ async function loadPluginRules(plugins: string[], cwd: string): Promise<Rule[]> 
       ? pluginPath
       : path.join(cwd, pluginPath);
     try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const mod = require(resolved) as Rule | Rule[] | { default: Rule | Rule[] };
       const exported = 'default' in mod ? (mod as { default: Rule | Rule[] }).default : mod;
       if (Array.isArray(exported)) {
@@ -84,7 +83,8 @@ export async function runScan(
     config = { ...config, exclude: [...config.exclude, ...houndIgnorePatterns] };
   }
 
-  let files = await discoverFiles(cwd, config);
+  const discovered = await discoverFiles(cwd, config);
+  let files = discovered;
   const paths = createPathMapper(cwd);
 
   // --diff mode: restrict to files changed vs. a git ref (fast PR gate).
@@ -191,7 +191,8 @@ export async function runScan(
   await Promise.all(tasks);
 
   // Persist updated cache
-  if (useCache) saveCache(cwd, cache);
+  // Prune against every in-scope file, not just the --diff subset scanned now.
+  if (useCache) saveCache(cwd, cache, discovered);
 
   // Sort by file path for deterministic, diffable output
   fileResults.sort((a, b) => a.file.localeCompare(b.file));
