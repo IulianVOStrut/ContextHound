@@ -174,10 +174,10 @@ hound scan --max-file-size 5242880
 
 ## GitHub Actions
 
-Add to your workflow to block merges when prompt risk is too high:
+Use the ContextHound Action to scan on every push and pull request, upload findings to GitHub Code Scanning, and block merges on risky changes:
 
 ```yaml
-# .github/workflows/context-hound.yml
+# .github/workflows/contexthound.yml
 name: Prompt Audit
 
 on: [push, pull_request]
@@ -187,27 +187,58 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      security-events: write
+      security-events: write   # SARIF upload to Code Scanning
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v4
+      - uses: IulianVOStrut/ContextHound@v2
         with:
-          node-version: '20'
+          fail-on: high
+```
 
-      - run: npm install -g context-hound
+Findings appear in your repository's **Security > Code scanning** tab and as annotations on the pull request.
 
-      - run: hound scan --format console,sarif,github-annotations --out results.sarif
+| Input | Default | Description |
+|-------|---------|-------------|
+| `version` | the release matching the Action | Exact `context-hound` npm version to run |
+| `dir` | `.` | Directory to scan |
+| `config` | | Path to a `.contexthoundrc.json` |
+| `threshold` | config or `60` | Fail when the repo score is at or above this value |
+| `fail-on` | | Fail on any finding of this severity or above: `critical`, `high`, `medium` |
+| `min-confidence` | | Only report rules at or above `low`, `medium` or `high` confidence |
+| `diff` | | Scan only files changed vs. this git ref, e.g. `origin/${{ github.base_ref }}` (needs `fetch-depth: 0` on checkout) |
+| `preset` | | Comma-separated rule presets, e.g. `owasp-llm-top10` |
+| `sarif-out` | `results.sarif` | Where to write the SARIF report |
+| `upload-sarif` | `true` | Upload the report to Code Scanning |
+| `node-version` | | Set up this Node.js version first (default: use the runner's Node.js) |
+
+Outputs: `score`, `findings`, `passed` and `sarif-file`, for use in later steps.
+
+For stricter supply-chain hygiene, pin the Action to a release commit SHA instead of `@v2`.
+
+**Without the Action**, install the CLI directly:
+
+```yaml
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - run: npm install -g context-hound@2.1.0
+
+      - run: hound scan --format console,sarif,github-annotations --out results
 
       - name: Upload to GitHub Code Scanning
         if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: results.sarif
 ```
 
-Findings will appear in your repository's **Security > Code scanning** tab. The `github-annotations` format posts inline PR comments and writes a summary table to the GitHub step summary.
+The `github-annotations` format adds inline annotations to the pull request and writes a summary table to the GitHub step summary.
 
 ---
 
@@ -334,7 +365,7 @@ ContextHound ships a [pre-commit](https://pre-commit.com) hook. Add it to your `
 ```yaml
 repos:
   - repo: https://github.com/IulianVOStrut/ContextHound
-    rev: v2.0.0
+    rev: v2.1.0
     hooks:
       - id: contexthound
         # optional — scan only changed files and fail on high-severity findings:
@@ -682,10 +713,11 @@ tests/
 ├── formatters.test.ts      # Unit tests for all report formatters
 ├── mitigation.test.ts      # Unit tests for mitigation detection
 └── cli.test.ts             # CLI integration tests (init, list-rules, exit codes)
+action.yml                  # Composite GitHub Action (uses: IulianVOStrut/ContextHound@v2)
 .github/
-├── action.yml              # Reusable composite GitHub Action
 └── workflows/
-    └── context-hound.yml    # CI workflow
+    ├── context-hound.yml    # CI workflow
+    └── release.yml          # Tag-triggered npm publish with provenance
 ```
 
 ---

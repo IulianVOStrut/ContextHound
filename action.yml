@@ -1,0 +1,158 @@
+name: 'ContextHound Scan'
+description: 'Static analysis for prompt injection and LLM security risks, with SARIF upload to GitHub Code Scanning'
+author: 'IulianVOStrut'
+branding:
+  icon: 'shield'
+  color: 'orange'
+
+# Usage:
+#   - uses: actions/checkout@v6
+#   - uses: IulianVOStrut/ContextHound@v2
+#     with:
+#       fail-on: high
+#
+# Every input reaches the shell through env: and is validated, never
+# interpolated into a script, so callers can safely pass values derived from
+# pull request metadata.
+
+inputs:
+  version:
+    description: 'Exact context-hound npm version to run. Defaults to the version released with this Action.'
+    required: false
+    default: '2.1.0'
+  dir:
+    description: 'Directory to scan, relative to the workspace.'
+    required: false
+    default: '.'
+  config:
+    description: 'Path to a .contexthoundrc.json config file.'
+    required: false
+    default: ''
+  threshold:
+    description: 'Fail when the repo risk score is at or above this value (0-100). Empty uses the config file or the default of 60.'
+    required: false
+    default: ''
+  fail-on:
+    description: 'Fail on any finding of this severity or above: critical, high or medium.'
+    required: false
+    default: ''
+  min-confidence:
+    description: 'Only report rules at or above this confidence: low, medium or high.'
+    required: false
+    default: ''
+  diff:
+    description: 'Scan only files changed vs. this git ref (for example origin/main). Needs actions/checkout with fetch-depth: 0. Empty scans everything.'
+    required: false
+    default: ''
+  preset:
+    description: 'Comma-separated rule presets, for example owasp-llm-top10 or mcp,agentic. Empty runs all rules.'
+    required: false
+    default: ''
+  sarif-out:
+    description: 'Path to write the SARIF report to.'
+    required: false
+    default: 'results.sarif'
+  upload-sarif:
+    description: 'Upload the SARIF report to GitHub Code Scanning (needs security-events: write).'
+    required: false
+    default: 'true'
+  node-version:
+    description: 'Set up this Node.js version first. Empty uses the Node.js already on the runner (20 or later required).'
+    required: false
+    default: ''
+
+outputs:
+  score:
+    description: 'Repo risk score (0-100).'
+    value: ${{ steps.scan.outputs.score }}
+  findings:
+    description: 'Number of findings reported.'
+    value: ${{ steps.scan.outputs.findings }}
+  passed:
+    description: 'true when the scan passed its gates, otherwise false.'
+    value: ${{ steps.scan.outputs.passed }}
+  sarif-file:
+    description: 'Path of the SARIF report.'
+    value: ${{ steps.scan.outputs.sarif-file }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Node.js
+      if: inputs.node-version != ''
+      uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+      with:
+        node-version: ${{ inputs.node-version }}
+
+    - name: Install ContextHound
+      id: install
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+      run: |
+        set -euo pipefail
+        if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+          echo "::error::version must be an exact version such as 2.1.0 (got '$VERSION')"
+          exit 1
+        fi
+        prefix="$RUNNER_TEMP/contexthound-$VERSION"
+        npm install --prefix "$prefix" --no-audit --no-fund --ignore-scripts --no-save "context-hound@$VERSION"
+        echo "bin=$prefix/node_modules/.bin/hound" >> "$GITHUB_OUTPUT"
+
+    - name: Run ContextHound scan
+      id: scan
+      shell: bash
+      env:
+        HOUND: ${{ steps.install.outputs.bin }}
+        SCAN_DIR: ${{ inputs.dir }}
+        CONFIG: ${{ inputs.config }}
+        THRESHOLD: ${{ inputs.threshold }}
+        FAIL_ON: ${{ inputs.fail-on }}
+        MIN_CONFIDENCE: ${{ inputs.min-confidence }}
+        DIFF_REF: ${{ inputs.diff }}
+        PRESET: ${{ inputs.preset }}
+        SARIF_OUT: ${{ inputs.sarif-out }}
+      run: |
+        set -uo pipefail
+        fail() { echo "::error::$1"; exit 1; }
+
+        [[ -z "$THRESHOLD" || "$THRESHOLD" =~ ^[0-9]{1,3}$ ]] || fail "threshold must be a number from 0 to 100"
+        [[ -z "$FAIL_ON" || "$FAIL_ON" =~ ^(critical|high|medium)$ ]] || fail "fail-on must be critical, high or medium"
+        [[ -z "$MIN_CONFIDENCE" || "$MIN_CONFIDENCE" =~ ^(low|medium|high)$ ]] || fail "min-confidence must be low, medium or high"
+        [[ -z "$PRESET" || "$PRESET" =~ ^[a-z0-9,-]+$ ]] || fail "preset must be a comma-separated list of preset names"
+        [[ -z "$DIFF_REF" || "$DIFF_REF" != -* ]] || fail "diff must be a git ref, not an option"
+        [[ -n "$SARIF_OUT" ]] || fail "sarif-out must not be empty"
+
+        base="$RUNNER_TEMP/contexthound-results"
+        args=(scan --dir "$SCAN_DIR" --format console,sarif,json --out "$base")
+        [[ -n "$CONFIG" ]] && args+=(--config "$CONFIG")
+        [[ -n "$THRESHOLD" ]] && args+=(--threshold "$THRESHOLD")
+        [[ -n "$FAIL_ON" ]] && args+=(--fail-on "$FAIL_ON")
+        [[ -n "$MIN_CONFIDENCE" ]] && args+=(--min-confidence "$MIN_CONFIDENCE")
+        [[ -n "$DIFF_REF" ]] && args+=(--diff "$DIFF_REF")
+        [[ -n "$PRESET" ]] && args+=(--preset "$PRESET")
+
+        "$HOUND" "${args[@]}"
+        code=$?
+
+        if [[ -f "$base.sarif" ]]; then
+          mkdir -p "$(dirname "$SARIF_OUT")"
+          cp "$base.sarif" "$SARIF_OUT"
+          echo "sarif-file=$SARIF_OUT" >> "$GITHUB_OUTPUT"
+        fi
+        if [[ -f "$base.json" ]]; then
+          node -e '
+            const r = require(process.argv[1]);
+            const out = [`score=${r.repoScore}`, `findings=${r.allFindings.length}`, `passed=${r.passed}`];
+            require("fs").appendFileSync(process.env.GITHUB_OUTPUT, out.join("\n") + "\n");
+          ' "$base.json"
+        fi
+        exit "$code"
+
+    - name: Upload SARIF to GitHub Code Scanning
+      if: always() && inputs.upload-sarif == 'true' && steps.scan.outputs.sarif-file != ''
+      continue-on-error: true
+      uses: github/codeql-action/upload-sarif@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
+      with:
+        sarif_file: ${{ steps.scan.outputs.sarif-file }}
+        category: contexthound
