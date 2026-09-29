@@ -3,10 +3,16 @@ name: Release
 # Publishes to npm with provenance when a version tag (vX.Y.Z) is pushed.
 # Third-party actions are pinned by commit SHA because this job can publish.
 #
-# One-time setup, either:
-#   - npm trusted publishing: on npmjs.com, add this repository and the
-#     workflow file `release.yml` as a trusted publisher for context-hound, or
-#   - an automation token stored as the NPM_TOKEN repository secret.
+# The publish job runs in the `npm-publish` environment, so it waits for a
+# required reviewer after the checks pass.
+#
+# One-time setup:
+#   - GitHub: Settings > Environments > New environment `npm-publish`. Add
+#     yourself as a required reviewer and limit deployments to `v*` tags.
+#   - npm trusted publishing: on npmjs.com, add this repository, the workflow
+#     file `release.yml` and the environment `npm-publish` as the trusted
+#     publisher for context-hound. Or, as a fallback, store a granular token
+#     as the NPM_TOKEN secret of the `npm-publish` environment.
 
 on:
   push:
@@ -19,12 +25,11 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  publish:
-    name: Test and publish
+  verify:
+    name: Test
     runs-on: ubuntu-latest
     permissions:
-      contents: write   # create the GitHub Release and move the major tag
-      id-token: write   # npm provenance and trusted publishing
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
@@ -54,6 +59,27 @@ jobs:
 
       - name: Benchmark
         run: npm run benchmark
+
+  publish:
+    name: Publish
+    needs: verify
+    runs-on: ubuntu-latest
+    environment: npm-publish
+    permissions:
+      contents: write   # create the GitHub Release and move the major tag
+      id-token: write   # npm provenance and trusted publishing
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install
+        run: npm ci
 
       - name: Upgrade npm (trusted publishing needs 11.5.1 or later)
         run: npm install --global npm@11

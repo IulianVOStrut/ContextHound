@@ -70,8 +70,9 @@ and MetaGPT on default settings goes from 192 findings (score 100) to 17.
   stderr and in the JSON report's `skippedFiles`, so padding a file past the
   limit never hides it silently.
 - **Release workflow.** Pushing a `vX.Y.Z` tag runs lint, tests and the
-  benchmark, publishes to npm with provenance, creates the GitHub Release and
-  moves the `vN` major tag.
+  benchmark, then publishes to npm with provenance after approval in the
+  `npm-publish` environment, creates the GitHub Release and moves the `vN`
+  major tag.
 - **Rule presets.** `--preset <names>` enables a curated rule bundle
   (`owasp-llm-top10`, `injection`, `jailbreak`, `exfiltration`, `agentic`, `mcp`,
   `supply-chain`, `prompt-files`) instead of listing IDs; presets union with
