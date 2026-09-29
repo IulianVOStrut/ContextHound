@@ -275,10 +275,10 @@ Run `hound init` to scaffold a `.contexthoundrc.json`, or create one manually:
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `include` | `**/*.{ts,tsx,js,jsx,py,go,rs,java,kt,cs,php,rb,swift,vue,sh,bash,hs,md,txt,yaml,yml,json}` | Glob patterns to scan |
-| `exclude` | `**/node_modules/**`, `**/dist/**`, etc. | Glob patterns to ignore |
+| `include` | prompt, Markdown, text, YAML and JSON files, plus `ts tsx mts cts js jsx mjs cjs vue py go rs java kt kts cs php rb swift sh bash hs` | Glob patterns to scan. Run `hound init` to see the full list |
+| `exclude` | dependency, build and virtualenv directories (`node_modules`, `dist`, `build`, `vendor`, `target`, `.venv`, `venv`, `__pycache__`, `.next`, ...), lockfiles, minified JS and ContextHound's own reports | Glob patterns to ignore. Report files written with `--out` are excluded automatically |
 | `threshold` | `60` | Fail if repo score is at or above this value (exit code 2) |
-| `formats` | `["console"]` | Output formats: `console`, `json`, `sarif`, `github-annotations`, `markdown`, `jsonl`, `html` |
+| `formats` | `["console"]` | Output formats: `console`, `json`, `sarif`, `github-annotations`, `markdown`, `jsonl`, `html`, `csv`, `junit`. `--format` overrides this |
 | `out` | auto | Base path for file output |
 | `verbose` | `false` | Show remediations and confidence per finding |
 | `failOn` | unset | Exit code 3 on first finding of: `critical`, `high`, or `medium` |

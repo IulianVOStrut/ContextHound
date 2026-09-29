@@ -80,3 +80,13 @@ describe('extractPrompts — no LLM trigger', () => {
     expect(cb.length).toBe(0);
   });
 });
+
+describe('ES module and TypeScript module extensions', () => {
+  it('treats .mjs/.cjs/.mts/.cts as code, not raw prompt text', () => {
+    const code = 'const note = "just a string that is long enough to be a raw prompt if misclassified";\nexport default note;\n';
+    for (const ext of ['.mjs', '.cjs', '.mts', '.cts']) {
+      const prompts = extractPrompts(`mod${ext}`, code);
+      expect(prompts.every(p => p.kind !== 'raw')).toBe(true);
+    }
+  });
+});

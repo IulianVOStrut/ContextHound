@@ -137,7 +137,7 @@ const COMPLETIONS_PATTERN = /\.chat\.completions\.create\s*\(\s*\{|\.messages\.c
 function isCodeFile(filePath: string): boolean {
   const ext = path.extname(filePath).toLowerCase();
   return [
-    '.ts', '.js', '.tsx', '.jsx',
+    '.ts', '.js', '.tsx', '.jsx', '.mts', '.cts', '.mjs', '.cjs',
     '.py', '.go', '.rs', '.java', '.kt', '.kts',
     '.cs', '.php', '.rb', '.swift', '.vue',
     '.sh', '.bash', '.c', '.cpp', '.cc', '.h', '.hs',

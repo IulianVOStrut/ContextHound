@@ -19,7 +19,7 @@ import { buildJunitReport } from './report/junit.js';
 import { toTerminalSafe } from './report/sanitize.js';
 import { allRules } from './rules/index.js';
 import { VERSION } from './version.js';
-import { DEFAULT_MAX_FILE_SIZE } from './config/defaults.js';
+import { DEFAULT_MAX_FILE_SIZE, DEFAULT_INCLUDE_GLOBS, DEFAULT_EXCLUDE_GLOBS } from './config/defaults.js';
 import type { AuditConfig, OutputFormat, FailOn, Confidence, Finding } from './types.js';
 
 const program = new Command();
@@ -44,21 +44,8 @@ program
 
     const template = {
       "_comment": "ContextHound configuration — https://github.com/IulianVOStrut/ContextHound",
-      "include": [
-        "**/*.prompt", "**/*.prompt.*", "**/*.md", "**/*.txt",
-        "**/*.yaml", "**/*.yml", "**/*.json",
-        "**/*.ts", "**/*.js", "**/*.py", "**/*.go",
-        "**/*.rs", "**/*.java", "**/*.kt", "**/*.cs",
-        "**/*.php", "**/*.rb", "**/*.swift", "**/*.vue",
-        "**/*.sh", "**/*.bash", "**/*.hs",
-      ],
-      "exclude": [
-        "**/node_modules/**", "**/dist/**", "**/build/**",
-        "**/.git/**", "**/coverage/**",
-        "**/*.min.js", "**/*.lock",
-        "**/package-lock.json", "**/yarn.lock", "**/pnpm-lock.yaml",
-        "**/src/rules/**",
-      ],
+      "include": DEFAULT_INCLUDE_GLOBS,
+      "exclude": DEFAULT_EXCLUDE_GLOBS,
       "threshold": 60,
       "formats": ["console"],
       "failOn": null,
@@ -151,7 +138,7 @@ program
   .command('scan', { isDefault: true })
   .description('Scan a repository for prompt-injection risks')
   .option('-c, --config <path>', 'Path to .contexthoundrc.json config file')
-  .option('-f, --format <formats>', 'Output formats: console,json,sarif,github-annotations,markdown,jsonl,html,csv,junit (comma-separated)', 'console')
+  .option('-f, --format <formats>', 'Output formats: console,json,sarif,github-annotations,markdown,jsonl,html,csv,junit (comma-separated; default: config file, else console)')
   .option('-o, --out <path>', 'Output path for json/sarif/markdown files')
   .option('-t, --threshold <n>', 'Risk score threshold (0-100). Fail if score >= threshold')
   .option('--fail-on <level>', 'Fail on first finding of this severity: critical|high|medium')
@@ -172,7 +159,7 @@ program
   .option('--list-presets', 'Print available rule presets and exit')
   .action(async (opts: {
     config?: string;
-    format: string;
+    format?: string;
     out?: string;
     threshold?: string;
     failOn?: string;
@@ -202,7 +189,7 @@ program
     }
     // ── --list-rules ──────────────────────────────────────────────────────
     if (opts.listRules) {
-      const formats = opts.format.split(',').map(f => f.trim());
+      const formats = (opts.format ?? '').split(',').map(f => f.trim());
       if (formats.includes('json')) {
         console.log(JSON.stringify(allRules.map(r => ({
           id: r.id, severity: r.severity, confidence: r.confidence,
@@ -231,7 +218,9 @@ program
     const fileConfig = loadConfig(opts.config, cwd);
 
     // CLI options override config file and env vars
-    const formats = opts.format.split(',').map(f => f.trim()) as OutputFormat[];
+    const formats = opts.format
+      ? opts.format.split(',').map(f => f.trim()).filter(Boolean) as OutputFormat[]
+      : fileConfig.formats;
 
     const config: AuditConfig = {
       ...fileConfig,
@@ -246,12 +235,23 @@ program
         : fileConfig.failFileThreshold,
       verbose: opts.verbose ?? fileConfig.verbose,
       concurrency: opts.concurrency ? parseInt(opts.concurrency, 10) : fileConfig.concurrency,
-      cache: opts.cache, // commander sets false for --no-cache, undefined when not passed
+      // commander defaults --no-cache options to true, so only an explicit
+      // --no-cache (false) may override the config file.
+      cache: opts.cache === false ? false : fileConfig.cache,
       baseline: opts.baseline ?? fileConfig.baseline,
       minConfidence: (opts.minConfidence as Confidence | undefined) ?? fileConfig.minConfidence,
       reportUnusedSuppressions: opts.reportUnusedSuppressions ?? fileConfig.reportUnusedSuppressions,
       diff: resolveDiffRef(opts.diff) ?? fileConfig.diff,
     };
+
+    // Never scan our own report files: they quote evidence and would be
+    // re-reported on every run.
+    if (config.out) {
+      const rel = path.relative(cwd, path.resolve(cwd, config.out)).split(path.sep).join('/');
+      if (rel && !rel.startsWith('..') && !path.isAbsolute(rel)) {
+        config.exclude = [...config.exclude, rel, `${rel}.*`];
+      }
+    }
 
     // --preset adds curated rule-ID patterns to includeRules (union with any
     // patterns already set via config or --include-rules).
