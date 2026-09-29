@@ -24,6 +24,17 @@ export interface Rule {
   check(prompt: ExtractedPrompt, filePath: string): RuleMatch[];
 }
 
+/** The first line of `prompt` matching `pattern`, as a RuleMatch, or null. */
+export function firstMatchingLine(prompt: ExtractedPrompt, pattern: RegExp): RuleMatch | null {
+  const lines = prompt.text.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    if (pattern.test(lines[i])) {
+      return { evidence: lines[i].trim(), lineStart: prompt.lineStart + i, lineEnd: prompt.lineStart + i };
+    }
+  }
+  return null;
+}
+
 /** Escape text for literal use inside a RegExp built from scanned content. */
 export function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

@@ -5,6 +5,22 @@ import type { ExtractedPrompt } from '../scanner/extractor.js';
 const RETRIEVAL_CALL_PATTERN =
   /(?:similaritySearch|similarity_search|vectorStore\.query|vector_store\.query|vectorstore\.query|retriever\.(?:get_relevant_documents|invoke|retrieve)|retrieve(?:Documents?|Chunks?|Context)?\s*\(|\.search\s*\(\s*(?!['"`])|docsearch\.search|pinecone\.query|weaviate\.query|qdrant\.search|milvus\.search|chromadb\.query|faiss\.search)/i;
 
+// RAG-001: does a message's content expression carry retrieved or external data?
+// String literals and constant-style names (SYSTEM_PROMPT, systemPrompt) do not.
+const RETRIEVED_NAME =
+  /(?:context|docs?\b|documents?|chunks?|passages?|retriev|search|results?\b|knowledge|\bkb\b|\brag|snippets?|sources?\b|external|fetched|scraped|crawl|webpage|pageContent|pageText|toolOutput|toolResult|upload|memory)/i;
+
+function isRetrievedContent(expr: string): boolean {
+  const e = expr.replace(/\s+/g, ' ');
+  if (/^(['"])/.test(e)) return false;                       // plain string literal
+  if (e.startsWith('`')) {
+    const inner = [...e.matchAll(/\$<([^>]*)>/g)].map(m => m[1]).join(' ');
+    return inner.length > 0 && RETRIEVED_NAME.test(inner);
+  }
+  if (/^[A-Z][A-Z0-9_]*$/.test(e)) return false;              // UPPER_SNAKE constant
+  return RETRIEVED_NAME.test(e);
+}
+
 export const ragRules: Rule[] = [
   {
     id: 'RAG-001',
@@ -20,21 +36,24 @@ export const ragRules: Rule[] = [
 
       // Detect role: "system" assignments
       const systemRolePattern = /role\s*:\s*['"`]system['"`]/i;
-      // Detect content: someVariable (not a string literal — negative lookahead on quote/digit)
-      const contentVarPattern = /content\s*:\s*(?!['"`\d])\s*[a-zA-Z_$][a-zA-Z0-9_$.[\]]*/i;
 
       lines.forEach((line, i) => {
-        if (!systemRolePattern.test(line)) return;
-        // Check the same line and the next 3 lines for a variable content value
-        const windowEnd = Math.min(i + 4, lines.length);
-        const window = lines.slice(i, windowEnd).join('\n');
-        if (contentVarPattern.test(window)) {
-          results.push({
-            evidence: line.trim(),
-            lineStart: prompt.lineStart + i,
-            lineEnd: prompt.lineStart + i,
-          });
-        }
+        const roleMatch = systemRolePattern.exec(line);
+        if (!roleMatch) return;
+        // Look only inside the same message object: from the role to the first
+        // closing brace, at most three lines on. The old window ran into the
+        // next message and flagged `{ role: 'user', content: input }`.
+        const window = [line.slice(roleMatch.index), ...lines.slice(i + 1, i + 4)].join('\n');
+        // Template expressions are rewritten to $<...> first so their braces do
+        // not end the object early.
+        const objectText = window.replace(/\$\{([^}]*)\}/g, '$<$1>').split('}')[0];
+        const content = /content\s*:\s*([^,\n]+)/i.exec(objectText)?.[1]?.trim();
+        if (!content || !isRetrievedContent(content)) return;
+        results.push({
+          evidence: line.trim(),
+          lineStart: prompt.lineStart + i,
+          lineEnd: prompt.lineStart + i,
+        });
       });
 
       return results;

@@ -1,5 +1,6 @@
 import path from 'path';
 import type { Rule, RuleMatch } from './types.js';
+import { maskSecrets } from './exfiltration.js';
 import type { ExtractedPrompt } from '../scanner/extractor.js';
 
 /**
@@ -213,7 +214,7 @@ export const skillsRules: Rule[] = [
         if (!inFrontmatter || frontmatterClosed) return;
         if (YAML_CRED_KEY_PATTERN.test(line) && YAML_CRED_VALUE_PATTERN.test(line)) {
           results.push({
-            evidence: line.trim(),
+            evidence: maskSecrets(line.trim()),
             lineStart: prompt.lineStart + i,
             lineEnd: prompt.lineStart + i,
           });

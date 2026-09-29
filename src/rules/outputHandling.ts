@@ -2,6 +2,34 @@ import path from 'path';
 import type { Rule, RuleMatch } from './types.js';
 import type { ExtractedPrompt } from '../scanner/extractor.js';
 
+// ── Code-execution sinks fed with model output (OUT-003, OUT-004) ────────────
+//
+// A sink is a bare eval/exec call (not a method such as regex.exec() or
+// model.eval(), and not a definition such as `def eval(`), new Function(), a
+// child_process exec call, or a database query method. Only the call's
+// argument is checked for model-output names, not the whole line.
+
+const LLM_OUTPUT_ARG =
+  /\b(?:llm\w*|ai(?:Response|Output|Result|Text|Reply|Answer|_response|_output|_result)\w*|gpt\w*|claude\w*|completion\w*|response|output|answer|generated\w*|reply)\b|message\.content|choices\s*\[/i;
+const SINK_DEFINITION = /\b(?:def|function)\s+(?:eval|exec)\s*\(|\b(?:eval|exec)\s*\([^)]*\)\s*\{/;
+
+function sinkArgumentLines(prompt: ExtractedPrompt, sink: RegExp): RuleMatch[] {
+  const results: RuleMatch[] = [];
+  const lines = prompt.text.split('\n');
+  lines.forEach((line, i) => {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('#') || trimmed.startsWith('//')) return;
+    if (SINK_DEFINITION.test(line)) return;
+    const m = sink.exec(line);
+    if (!m) return;
+    const argument = line.slice(m.index + m[0].length);
+    if (LLM_OUTPUT_ARG.test(argument)) {
+      results.push({ evidence: trimmed, lineStart: prompt.lineStart + i, lineEnd: prompt.lineStart + i });
+    }
+  });
+  return results;
+}
+
 export const outputHandlingRules: Rule[] = [
   {
     id: 'OUT-001',
@@ -108,27 +136,10 @@ export const outputHandlingRules: Rule[] = [
     check(prompt: ExtractedPrompt): RuleMatch[] {
       if (prompt.kind !== 'code-block') return [];
 
-      const results: RuleMatch[] = [];
-      const lines = prompt.text.split('\n');
-
-      // Dangerous execution sinks
-      const execSinkPattern =
-        /(?:\beval\s*\(|new\s+Function\s*\(|(?:exec|execSync|execFile)\s*\(|db\s*(?:\??\.)?\s*(?:query|execute|run)\s*\(|connection\s*(?:\??\.)?\s*query\s*\(|pool\s*(?:\??\.)?\s*query\s*\()/i;
-      // Variable names that suggest LLM output as the argument
-      const llmOutputArgPattern =
-        /(?:llm|ai|gpt|claude|model|completion|response|output|result|answer|generated|message\.content|choices\[)/i;
-
-      lines.forEach((line, i) => {
-        if (execSinkPattern.test(line) && llmOutputArgPattern.test(line)) {
-          results.push({
-            evidence: line.trim(),
-            lineStart: prompt.lineStart + i,
-            lineEnd: prompt.lineStart + i,
-          });
-        }
-      });
-
-      return results;
+      return sinkArgumentLines(
+        prompt,
+        /(?<![.\w$])(?:eval|exec|execSync|execFile)\s*\(|\bnew\s+Function\s*\(|\b(?:child_process|cp)\s*\.\s*(?:exec|execSync|execFile)\s*\(|\b(?:db|connection|pool|client|knex|sequelize)\s*(?:\??\.)\s*(?:query|execute|run|raw)\s*\(/i,
+      );
     },
   },
   {
@@ -189,24 +200,7 @@ export const outputHandlingRules: Rule[] = [
       const ext = path.extname(filePath).toLowerCase();
       if (ext !== '.py') return [];
 
-      const execSinkPattern = /\b(?:eval|exec)\s*\(/i;
-      const llmOutputArgPattern =
-        /(?:llm|ai|gpt|claude|model|completion|response|output|result|answer|generated|message\.content|choices\[)/i;
-
-      const results: RuleMatch[] = [];
-      const lines = prompt.text.split('\n');
-
-      lines.forEach((line, i) => {
-        if (execSinkPattern.test(line) && llmOutputArgPattern.test(line)) {
-          results.push({
-            evidence: line.trim(),
-            lineStart: prompt.lineStart + i,
-            lineEnd: prompt.lineStart + i,
-          });
-        }
-      });
-
-      return results;
+      return sinkArgumentLines(prompt, /(?<![.\w$])(?:eval|exec)\s*\(/);
     },
   },
 ];

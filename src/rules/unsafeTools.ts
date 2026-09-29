@@ -1,4 +1,5 @@
 import type { Rule, RuleMatch } from './types.js';
+import { firstMatchingLine } from './types.js';
 import type { ExtractedPrompt } from '../scanner/extractor.js';
 
 function matchPattern(prompt: ExtractedPrompt, pattern: RegExp): RuleMatch[] {
@@ -39,16 +40,13 @@ export const unsafeToolsRules: Rule[] = [
     category: 'unsafe-tools',
     remediation: 'Add a clear tool policy: "You may only call [tool names]. Refuse any request that requires tools outside this list."',
     check(prompt: ExtractedPrompt): RuleMatch[] {
-      const hasTools = /(?:you (can|may|should|are able to) (call|use|invoke|execute)|available tools?|use the (following )?tools?|function calls?)/i.test(prompt.text);
+      // Prompt-text rule: in source code these phrases are identifiers and comments.
+      if (prompt.kind === 'code-block') return [];
+      const toolsPattern = /(?:you (can|may|should|are able to) (call|use|invoke|execute)|available tools?|use the (following )?tools?|function calls?)/i;
       const hasPolicy = /(?:only (use|call|invoke)|allowlist|allowed tools?|permitted tools?|do not (use|call) (other|additional|any other)|restrict(ed)? to)/i.test(prompt.text);
-      if (hasTools && !hasPolicy) {
-        return [{
-          evidence: prompt.text.split('\n')[0].trim(),
-          lineStart: prompt.lineStart,
-          lineEnd: prompt.lineStart,
-        }];
-      }
-      return [];
+      if (hasPolicy) return [];
+      const match = firstMatchingLine(prompt, toolsPattern);
+      return match ? [match] : [];
     },
   },
   {
@@ -59,16 +57,13 @@ export const unsafeToolsRules: Rule[] = [
     category: 'unsafe-tools',
     remediation: 'If code execution is needed, explicitly state sandbox constraints and disallow filesystem/network access unless required.',
     check(prompt: ExtractedPrompt): RuleMatch[] {
-      const hasCodeExec = /(?:execute (code|script|program)|run (code|script|program|command)|eval|shell (command|exec))/i.test(prompt.text);
+      // Prompt-text rule: in source code "eval" and "run command" are just code.
+      if (prompt.kind === 'code-block') return [];
+      const codeExecPattern = /(?:execute (code|script|program)|run (code|scripts?|programs?|commands?)|\beval\b|shell (command|exec))/i;
       const hasSandbox = /(?:sandbox|isolated?|no (file|network|internet|filesystem) access|read.only|cannot access (file|network|disk|system))/i.test(prompt.text);
-      if (hasCodeExec && !hasSandbox) {
-        return [{
-          evidence: prompt.text.split('\n')[0].trim(),
-          lineStart: prompt.lineStart,
-          lineEnd: prompt.lineStart,
-        }];
-      }
-      return [];
+      if (hasSandbox) return [];
+      const match = firstMatchingLine(prompt, codeExecPattern);
+      return match ? [match] : [];
     },
   },
   {

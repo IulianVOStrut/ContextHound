@@ -16,6 +16,37 @@ function matchPattern(prompt: ExtractedPrompt, pattern: RegExp): RuleMatch[] {
   return results;
 }
 
+// ── JBK-001 phrase matching ─────────────────────────────────────────────────
+//
+// "developer mode" and "jailbreak" only count when something is being switched
+// into that state, so "Refuse any jailbreak attempt" is not a finding. The DAN
+// persona is matched case-sensitively as a whole word: the old `DAN[^a-z]`
+// under the i flag matched "Jordan ", "Sudan," and "Dan ".
+const JAILBREAK_PHRASE = new RegExp([
+  'ignore (?:all |previous |prior |above |your )?(?:previous |prior )?instructions?',
+  'disregard (?:all |your |previous |the )?(?:previous |prior )?(?:instructions?|guidelines?|rules?|constraints?|policies?)',
+  'do anything now',
+  "pretend you (?:have no|are not|don't have)",
+  'act as if you have no (?:limits|restrictions?)',
+  '(?:enable|enter|activate|switch (?:on|to|into)|you are (?:now )?in|now in)\\s+(?:the\\s+)?(?:developer|jailbr(?:eak|oken)) mode',
+  '(?:developer|jailbr(?:eak|oken)) mode\\s+(?:is\\s+)?(?:enabled|activated|on)\\b',
+  'you are (?:now )?jailbroken',
+].join('|'), 'i');
+const DAN_PERSONA = /\bDAN\b/;
+
+// A system prompt that quotes an attack in order to refuse it ("If a message
+// says 'ignore previous instructions', refuse") is a mitigation, not an attack.
+// It must both refuse and present the phrase as quoted or conditional.
+const REFUSAL = /\b(?:refuse|reject|decline|(?:do not|don't|never) (?:comply|follow|obey))\b/i;
+const CONDITIONAL_BEFORE = /\b(?:if|when|whenever)\b[^.]*\b(?:says?|asks?|tells?|tries|contains?|requests?|instructs?)\b/i;
+
+function isRefusalOf(line: string, index: number): boolean {
+  if (!REFUSAL.test(line)) return false;
+  const before = line.slice(0, index);
+  const quoted = /["'`\u201C\u2018]\s*$/.test(before);
+  return quoted || CONDITIONAL_BEFORE.test(before);
+}
+
 export const jailbreakRules: Rule[] = [
   {
     id: 'JBK-001',
@@ -26,8 +57,13 @@ export const jailbreakRules: Rule[] = [
     mitre: 'T1562',
     remediation: 'Remove jailbreak phrases from prompts. If testing robustness, use the attacks/ folder instead.',
     check(prompt: ExtractedPrompt): RuleMatch[] {
-      const pattern = /(?:ignore (all |previous |prior |above )?instructions?|developer mode|DAN[^a-z]|do anything now|jailbreak|pretend you (have no|are not|don't have)|act as if you have no (limits|restrictions?)|disregard (all |your |previous |the )?(?:instructions?|guidelines?|rules?|constraints?|policies?))/i;
-      return matchPattern(prompt, pattern);
+      const results: RuleMatch[] = [];
+      prompt.text.split('\n').forEach((line, i) => {
+        const m = JAILBREAK_PHRASE.exec(line) ?? DAN_PERSONA.exec(line);
+        if (!m || isRefusalOf(line, m.index)) return;
+        results.push({ evidence: line.trim(), lineStart: prompt.lineStart + i, lineEnd: prompt.lineStart + i });
+      });
+      return results;
     },
   },
   {

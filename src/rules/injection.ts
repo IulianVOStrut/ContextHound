@@ -18,6 +18,24 @@ function matchPattern(prompt: ExtractedPrompt, pattern: RegExp): RuleMatch[] {
   return results;
 }
 
+// ── INJ-001 helpers ──────────────────────────────────────────────────────────
+
+const LOG_SINK = /\b(?:console\.(?:log|info|warn|error|debug|trace)|logger\.\w+|logging\.\w+|log\.(?:info|debug|warn|error|trace)|print(?:ln|f)?\s*\(|puts\b|System\.out\.)/;
+
+/**
+ * Is the interpolation at `index` wrapped in a delimiter pair: an XML-style tag
+ * (<document>...</document>, <user_message>...) or a bracket tag ([tag]...[/tag])
+ * within 300 characters on either side?
+ */
+function hasTagDelimiter(text: string, index: number): boolean {
+  const before = text.slice(Math.max(0, index - 300), index);
+  const after = text.slice(index, index + 300);
+  for (const m of before.matchAll(/<([A-Za-z][\w-]*)\b[^<>]*>/g)) {
+    if (after.includes(`</${m[1]}>`)) return true;
+  }
+  return /\[[^\]\n/]{1,40}\]/.test(before) && /\[\/[^\]\n]{0,40}\]/.test(after);
+}
+
 export const injectionRules: Rule[] = [
   {
     id: 'INJ-001',
@@ -48,6 +66,9 @@ export const injectionRules: Rule[] = [
       if (ext === '.rb')    patterns.push(rbPattern);
       if (ext === '.swift') patterns.push(swPattern);
 
+      // Where the user-controlled interpolation sits on a matched line.
+      const interpolationOf = new RegExp(`[{(]\\s*${USER_VARS}\\s*[})]`, 'i');
+
       const seen = new Set<number>();
       const allResults: RuleMatch[] = [];
       for (const pat of patterns) {
@@ -71,6 +92,10 @@ export const injectionRules: Rule[] = [
       for (const l of lines) { lineOffsets.push(offset); offset += l.length + 1; }
 
       return allResults.filter(r => {
+        const trimmed = r.evidence;
+        // Commented-out code and log/print calls are not prompts.
+        if (/^(?:#|\/\/|\*|\/\*)/.test(trimmed)) return false;
+        if (LOG_SINK.test(trimmed)) return false;
         const varName = r.evidence.match(/\$\{([^}]+)\}|#\{([^}]+)\}|\\?\(([^)]+)\)/)?.[1] ?? '';
         // The name comes from scanned text: only treat it as a variable when it is
         // a plain identifier, and escape it before building a RegExp from it.
@@ -80,7 +105,8 @@ export const injectionRules: Rule[] = [
         const line = lines[idx] ?? '';
         const pos = (lineOffsets[idx] ?? 0) + (line.length - line.trimStart().length);
         const context = prompt.text.slice(Math.max(0, pos - 150), pos + 150);
-        const hasBoundary = /(```|<USER>|<user>|\[USER\]|untrusted|user content|user input)/i.test(context);
+        const hasBoundary = /(```|<USER>|<user>|\[USER\]|untrusted|user content|user input)/i.test(context)
+          || hasTagDelimiter(prompt.text, (lineOffsets[idx] ?? 0) + Math.max(0, line.search(interpolationOf)));
         const hasSanitizer = rootVar
           ? new RegExp(
               `(?:sanitize|sanitise|escape|htmlEscape|xss|DOMPurify\\.sanitize|validator\\.escape|encodeURIComponent|stripTags)\\s*\\(\\s*${rootVar}\\b`,
