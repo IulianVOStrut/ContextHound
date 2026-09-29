@@ -19,7 +19,7 @@ inputs:
   version:
     description: 'Exact context-hound npm version to run. Defaults to the version released with this Action.'
     required: false
-    default: '2.1.0'
+    default: '2.1.1'
   dir:
     description: 'Directory to scan, relative to the workspace.'
     required: false

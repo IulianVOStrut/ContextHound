@@ -9,6 +9,19 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic V
 
 ---
 
+## [2.1.1] - 2026-09-29
+
+No changes to scanning, rules or output.
+
+### Changed
+
+- The changelog uses plain punctuation, and version headings use
+  `[x.y.z] - date` throughout.
+- Release notes created by the release workflow stop at the section
+  separator instead of ending with a horizontal rule.
+
+---
+
 ## [2.1.0] - 2026-09-29
 
 First npm release since 1.8.0: it also carries everything listed under 2.0.0,
