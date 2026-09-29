@@ -5,6 +5,7 @@ import path from 'path';
 import { loadConfig } from './config/loader.js';
 import { runScan } from './scanner/pipeline.js';
 import { resolveDiffRef } from './scanner/gitDiff.js';
+import { applyBaseline, loadBaseline } from './scanner/baseline.js';
 import { PRESETS, resolvePresets } from './config/presets.js';
 import { printConsoleReport } from './report/console.js';
 import { buildJsonReport } from './report/json.js';
@@ -18,7 +19,7 @@ import { buildJunitReport } from './report/junit.js';
 import { toTerminalSafe } from './report/sanitize.js';
 import { allRules } from './rules/index.js';
 import { DEFAULT_MAX_FILE_SIZE } from './config/defaults.js';
-import type { AuditConfig, OutputFormat, FailOn, Confidence, Finding, ScanResult } from './types.js';
+import type { AuditConfig, OutputFormat, FailOn, Confidence, Finding } from './types.js';
 
 const program = new Command();
 
@@ -295,7 +296,14 @@ program
 
     // ── Baseline diff ─────────────────────────────────────────────────────
     if (config.baseline) {
-      result = applyBaseline(result, config.baseline);
+      const baselineFindings = loadBaseline(config.baseline);
+      if (baselineFindings === null) {
+        console.warn(`Warning: could not load baseline from ${config.baseline}; reporting all findings`);
+      } else {
+        const outcome = applyBaseline(result, baselineFindings, config);
+        result = outcome.result;
+        console.log(`Baseline: ${outcome.known} known · ${outcome.added} new · ${outcome.resolved} resolved`);
+      }
     }
 
     // Console report always prints (unless only jsonl/json/sarif requested)
@@ -424,46 +432,6 @@ program
     }
     process.exit(0);
   });
-
-// ── baseline diff ─────────────────────────────────────────────────────────────
-
-function applyBaseline(result: ScanResult, baselinePath: string): ScanResult {
-  let baselineFindings: Finding[] = [];
-  try {
-    const raw = JSON.parse(fs.readFileSync(path.resolve(baselinePath), 'utf8')) as ScanResult;
-    baselineFindings = raw.allFindings ?? [];
-  } catch {
-    console.warn(`Warning: could not load baseline from ${baselinePath}; reporting all findings`);
-    return result;
-  }
-
-  // A finding is "known" if baseline has same rule ID on same file
-  const knownKeys = new Set(baselineFindings.map(f => `${f.id}:${f.file}`));
-  const newFindings = result.allFindings.filter(f => !knownKeys.has(`${f.id}:${f.file}`));
-  const resolvedCount = baselineFindings.filter(f => !result.allFindings.some(r => r.id === f.id && r.file === f.file)).length;
-
-  console.log(`Baseline: ${baselineFindings.length} known · ${newFindings.length} new · ${resolvedCount} resolved`);
-
-  // Rebuild result with only new findings
-  const newFiles = result.files
-    .map(fr => {
-      const filtered = fr.findings.filter(f => !knownKeys.has(`${f.id}:${f.file}`));
-      return filtered.length > 0 ? { ...fr, findings: filtered } : null;
-    })
-    .filter((fr): fr is NonNullable<typeof fr> => fr !== null);
-
-  const rawTotal = newFiles.reduce((s, f) => s + f.fileScore, 0);
-  const repoScore = Math.min(100, rawTotal);
-
-  return {
-    ...result,
-    files: newFiles,
-    allFindings: newFindings,
-    repoScore,
-    scoreLabel: result.repoScore < 30 ? 'low' : result.repoScore < 60 ? 'medium' : result.repoScore < 80 ? 'high' : 'critical',
-    passed: repoScore < result.threshold,
-  };
-}
 
 // ── watch mode implementation ─────────────────────────────────────────────────
 
