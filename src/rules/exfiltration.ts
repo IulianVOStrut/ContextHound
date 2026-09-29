@@ -93,7 +93,10 @@ export const exfiltrationRules: Rule[] = [
       // client is configured, not a secret in a prompt.
       if (prompt.kind === 'code-block') return [];
       const results: RuleMatch[] = [];
+      const fromCode = prompt.kind === 'object-field' || prompt.kind === 'chat-message';
       prompt.text.split('\n').forEach((line, i) => {
+        // Comments inside windows extracted from source code are not prompt text.
+        if (fromCode && /^\s*(?:#|\/\/|\*)/.test(line)) return;
         if (!mentionsSecretInProse(line)) return;
         results.push({ evidence: line.trim(), lineStart: prompt.lineStart + i, lineEnd: prompt.lineStart + i });
       });

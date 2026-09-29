@@ -3,7 +3,7 @@ import type { ExtractedPrompt } from '../scanner/extractor.js';
 
 // Shared retrieval call pattern used by RAG-005 and RAG-006
 const RETRIEVAL_CALL_PATTERN =
-  /(?:similaritySearch|similarity_search|vectorStore\.query|vector_store\.query|vectorstore\.query|retriever\.(?:get_relevant_documents|invoke|retrieve)|retrieve(?:Documents?|Chunks?|Context)?\s*\(|\.search\s*\(\s*(?!['"`])|docsearch\.search|pinecone\.query|weaviate\.query|qdrant\.search|milvus\.search|chromadb\.query|faiss\.search)/i;
+  /(?:similaritySearch|similarity_search|vectorStore\.query|vector_store\.query|vectorstore\.query|retriever\.(?:get_relevant_documents|invoke|retrieve)|retrieve(?:Documents?|Chunks?|Context)?\s*\(|\b(?![Rr]e\.)\w*(?:index|store|vector|retriever|collection|search_?client|searchClient|kb|knowledge)\w*\s*\.\s*search\s*\(|docsearch\.search|pinecone\.query|weaviate\.query|qdrant\.search|milvus\.search|chromadb\.query|faiss\.search)/i;
 
 // RAG-001: does a message's content expression carry retrieved or external data?
 // String literals and constant-style names (SYSTEM_PROMPT, systemPrompt) do not.
@@ -138,8 +138,11 @@ export const ragRules: Rule[] = [
     remediation:
       'Explicitly state that retrieved context is untrusted data and must not override developer instructions. Retrieved content should inform — not direct — model behavior.',
     check(prompt: ExtractedPrompt): RuleMatch[] {
+      // Prompt-text rule: in code, `context` and `override` are identifiers.
+      if (prompt.kind === 'code-block') return [];
       const pattern =
-        /(?:(?:retrieved|context|documents?|knowledge\s+base|search\s+results?).{0,60}(?:highest\s+priority|overrides?|takes?\s+precedence|more\s+important\s+than|supersedes?|always\s+follow|must\s+follow)|(?:always|must|strictly)\s+follow\s+(?:the\s+)?(?:retrieved|context|documents?|knowledge\s+base|search\s+results?))/i;
+        /(?:(?:retrieved|context|documents?|knowledge\s+base|search\s+results?)[^=()\n]{0,60}(?:highest\s+priority|overrides?|takes?\s+precedence|more\s+important\s+than|supersedes?|always\s+follow|must\s+follow)(?=\s+\w|[.!;:]|\s*$)|(?:always|must|strictly)\s+follow\s+(?:the\s+)?(?:retrieved|context|documents?|knowledge\s+base|search\s+results?))/i;
+      // The span must read as prose: `set_context(ctx, override=True)` is code.
       return matchPattern(prompt, pattern);
     },
   },

@@ -59,7 +59,8 @@ export const unsafeToolsRules: Rule[] = [
     check(prompt: ExtractedPrompt): RuleMatch[] {
       // Prompt-text rule: in source code "eval" and "run command" are just code.
       if (prompt.kind === 'code-block') return [];
-      const codeExecPattern = /(?:execute (code|script|program)|run (code|scripts?|programs?|commands?)|\beval\b|shell (command|exec))/i;
+      // `eval(` followed by a call is code caught in an extraction window, not prose.
+      const codeExecPattern = /(?:execute (code|script|program)|run (code|scripts?|programs?|commands?)|\beval\b(?!\s*\()|shell (command|exec))/i;
       const hasSandbox = /(?:sandbox|isolated?|no (file|network|internet|filesystem) access|read.only|cannot access (file|network|disk|system))/i.test(prompt.text);
       if (hasSandbox) return [];
       const match = firstMatchingLine(prompt, codeExecPattern);

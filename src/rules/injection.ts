@@ -20,6 +20,9 @@ function matchPattern(prompt: ExtractedPrompt, pattern: RegExp): RuleMatch[] {
 
 // ── INJ-001 helpers ──────────────────────────────────────────────────────────
 
+const PROMPT_CONTEXT =
+  /\b(?:\w*prompt\w*|messages?|system|instructions?|query_text)\b\s*(?:\+?=|:|\.(?:append|push|extend|insert)\b)|["']?(?:role|content)["']?\s*:|\byou are\b|\byour (?:task|role|job)\b|\b(?:answer|respond|summari[sz]e|translate|assistant)\b/i;
+
 const LOG_SINK = /\b(?:console\.(?:log|info|warn|error|debug|trace)|logger\.\w+|logging\.\w+|log\.(?:info|debug|warn|error|trace)|print(?:ln|f)?\s*\(|puts\b|System\.out\.)/;
 
 /**
@@ -93,6 +96,9 @@ export const injectionRules: Rule[] = [
 
       return allResults.filter(r => {
         const trimmed = r.evidence;
+        // Over a whole source file, an f-string or template is only a prompt when
+        // the line says so; error messages and paths are not.
+        if (prompt.kind === 'code-block' && !PROMPT_CONTEXT.test(trimmed)) return false;
         // Commented-out code and log/print calls are not prompts.
         if (/^(?:#|\/\/|\*|\/\*)/.test(trimmed)) return false;
         if (LOG_SINK.test(trimmed)) return false;
@@ -570,8 +576,10 @@ export const injectionRules: Rule[] = [
 
       // Python: Template(variable), Environment().from_string(variable),
       // render_template_string(variable), env.from_string(variable)
+      // Case-sensitive: `Template(` is the class; the old i flag matched
+      // "template (str): ..." in docstrings.
       const pyPattern =
-        /(?:Template|from_string|render_template_string)\s*\(\s*(?!['"`\{#])[a-z_][a-z0-9_]*/i;
+        /(?:\bTemplate|\.from_string|\brender_template_string)\s*\(\s*(?!['"`\{#])[a-z_][a-z0-9_]*/;
 
       // JS/TS: Handlebars.compile(variable), nunjucks.renderString(variable),
       // Mustache.render(variable, ...), ejs.render(variable, ...)

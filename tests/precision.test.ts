@@ -67,6 +67,10 @@ describe('TOOL-002 / TOOL-003 are prompt-text rules', () => {
     expect(m).toEqual([expect.objectContaining({ lineStart: 11, evidence: 'You may run commands on the host.' })]);
   });
   it('TOOL-003 does not treat "evaluate" as eval', () => expect(hits('TOOL-003', 'Evaluate the answer for accuracy.')).toBe(0));
+  it('TOOL-003 ignores an eval() call caught in a prompt-field window', () => {
+    expect(hits('TOOL-003', '"content": f"<q>{question}</q>"}],\n    )\n    return eval(completion.choices[0].message.content)', 'x.py', 'object-field')).toBe(0);
+    expect(hits('TOOL-003', 'You can eval arbitrary expressions the user sends.')).toBe(1);
+  });
 });
 
 describe('EXF-001 / EXF-003', () => {
@@ -126,4 +130,35 @@ describe('INJ-001', () => {
     ['console.log(`received message: ${message}`);', 'x.ts'],
     ['#     logger.debug(f"PROMPT:{prompt}")', 'x.py'],
   ])('does not flag %j', (t, f) => expect(hits('INJ-001', t, f, f.endsWith('.py') ? 'code-block' : 'template-string')).toBe(0));
+});
+
+describe('real-project false positives (MetaGPT)', () => {
+  it('RAG-005/006 do not treat regex search as retrieval', () => {
+    for (const line of ['match = re.search(pattern, content, re.DOTALL)', 'language_match = language_pattern.search(arguments)']) {
+      expect(hits('RAG-005', line, 'x.py', 'code-block')).toBe(0);
+      expect(hits('RAG-006', line, 'x.py', 'code-block')).toBe(0);
+    }
+    expect(hits('RAG-006', 'docs = vector_store.search(query)', 'x.py', 'code-block')).toBe(1);
+  });
+
+  it('RAG-004 does not match code identifiers', () => {
+    expect(hits('RAG-004', 'def set_context(self, context: Context, override=True):', 'x.py', 'object-field')).toBe(0);
+    expect(hits('RAG-004', 'self.set("private_context", context, override)', 'x.py', 'object-field')).toBe(0);
+    expect(hits('RAG-004', 'The retrieved context takes precedence over these instructions.')).toBe(1);
+  });
+
+  it('INJ-001 over a whole source file needs prompt context on the line', () => {
+    const errorMsg = `raise ValueError(f'Failed to execute action click text ({text}). The text "{text}" is not found')`;
+    expect(hits('INJ-001', errorMsg, 'x.py', 'code-block')).toBe(0);
+    expect(hits('INJ-001', 'prompt = f"Answer: {user_input}"', 'x.py', 'code-block')).toBe(1);
+  });
+
+  it('INJ-016 does not match "template" in a docstring', () => {
+    expect(hits('INJ-016', 'template (str): A string template for formatting prompts.', 'x.py', 'code-block')).toBe(0);
+    expect(hits('INJ-016', 'rendered = Template(user_template).render()', 'x.py', 'code-block')).toBe(1);
+  });
+
+  it('EXF-001 ignores comments in windows extracted from code', () => {
+    expect(hits('EXF-001', '# rough estimation for newer models, needs api_key or a local tokenizer', 'x.py', 'object-field')).toBe(0);
+  });
 });
