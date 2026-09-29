@@ -105,6 +105,11 @@ export interface ExtractedPrompt {
   lineStart: number;
   lineEnd: number;
   kind: 'raw' | 'template-string' | 'object-field' | 'chat-message' | 'code-block';
+  /**
+   * 'doc' marks general documentation (README, changelog, dataset text) rather
+   * than a prompt file. Only rules flagged `docs: true` run on it.
+   */
+  context?: 'doc';
 }
 
 const PROMPT_KEY_PATTERN = /(?:^|["'])(?:system|prompt|instructions?|messages?|role|content|context|directive)(?:["']|\s*:)/i;
@@ -144,6 +149,28 @@ function isCodeFile(filePath: string): boolean {
   ].includes(ext);
 }
 
+// Text files that are prompts or agent instructions, as opposed to ordinary
+// documentation. Everything else with a .md/.txt extension is treated as docs.
+const PROMPT_FILE_BASENAMES = new Set([
+  'agents.md', 'claude.md', 'gemini.md', 'copilot-instructions.md', 'skill.md', 'soul.md', 'identity.md',
+  '.cursorrules', '.windsurfrules', '.clinerules', 'llms.txt', 'llms-full.txt',
+]);
+const PROMPT_NAME_PATTERN = /prompt|instruction|system[-_ ]?message|persona/i;
+const PROMPT_DIRS = new Set(['prompts', 'prompt', 'instructions', 'personas', 'skills']);
+// Tool-specific locations for agent rules, commands and prompt files.
+const PROMPT_DIR_PATHS = ['/.cursor/rules/', '/.claude/', '/.github/prompts/', '/.github/instructions/', '/.windsurf/', '/.continue/'];
+
+export function isPromptTextFile(filePath: string): boolean {
+  const norm = '/' + filePath.replace(/\\/g, '/').toLowerCase().replace(/^\/+/, '');
+  const base = path.posix.basename(norm);
+  if (PROMPT_FILE_BASENAMES.has(base)) return true;
+  if (base.endsWith('.prompt') || base.includes('.prompt.') || base.endsWith('.mdc')) return true;
+  if (PROMPT_NAME_PATTERN.test(base)) return true;
+  if (norm.includes('.openclaw') || norm.includes('clawhub')) return true;
+  if (PROMPT_DIR_PATHS.some(d => norm.includes(d))) return true;
+  return path.posix.dirname(norm).split('/').some(d => PROMPT_DIRS.has(d));
+}
+
 function isRawPromptFile(filePath: string): boolean {
   const ext = path.extname(filePath).toLowerCase();
   return ['.prompt', '.txt', '.md'].includes(ext);
@@ -165,6 +192,9 @@ export function extractPrompts(filePath: string, preloaded?: string): ExtractedP
 
   if (isRawPromptFile(filePath)) {
     results = extractFromRaw(content);
+    if (!isPromptTextFile(filePath) && path.extname(filePath).toLowerCase() !== '.prompt') {
+      results = results.map(p => ({ ...p, context: 'doc' as const }));
+    }
     // OpenClaw skill files: also emit the full file as code-block so multi-line
     // SKL rules (SKL-004 whole-file frontmatter checks, etc.) fire correctly.
     const base = path.basename(filePath).toLowerCase();

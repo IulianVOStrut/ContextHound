@@ -41,12 +41,17 @@ export function analyzePrompt(
   const seen = new Set<string>();
   const confidenceOrder: Confidence[] = ['low', 'medium', 'high'];
   const ruleset = extraRules ? [...allRules, ...extraRules] : allRules;
+  const pluginRules = new Set<Rule>(extraRules ?? []);
 
   for (const prompt of prompts) {
     // Get mitigations for this prompt
     const mitigation = scoreMitigations(prompt);
 
     for (const rule of ruleset) {
+      // General documentation only gets rules that are meaningful in any text.
+      // Plugin rules predate the flag, so they keep running everywhere unless
+      // they opt out with `docs: false`.
+      if (prompt.context === 'doc' && !(rule.docs ?? pluginRules.has(rule))) continue;
       // Apply rule filters
       if (config?.excludeRules?.some(p => matchesFilter(rule.id, p))) continue;
       if (config?.includeRules?.length &&

@@ -15,6 +15,12 @@ export interface Rule {
   category: 'injection' | 'exfiltration' | 'jailbreak' | 'unsafe-tools' | 'multimodal' | 'skills' | 'agentic' | 'mcp' | 'supply-chain' | 'dos' | 'persistence';
   mitre?: string;
   remediation: string;
+  /**
+   * Also run on general documentation (README, changelogs, datasets), not just
+   * prompt files and code. Only for rules whose match is suspicious in any text:
+   * hidden characters, real secret values, hidden instructions.
+   */
+  docs?: boolean;
   check(prompt: ExtractedPrompt, filePath: string): RuleMatch[];
 }
 

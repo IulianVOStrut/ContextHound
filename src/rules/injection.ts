@@ -205,6 +205,7 @@ export const injectionRules: Rule[] = [
     mitre: 'T1027',
     remediation:
       'Strip HTML comments from all user-supplied content before inserting into prompts. Use a strict HTML sanitiser rather than a regex replacement.',
+    docs: true,
     check(prompt: ExtractedPrompt): RuleMatch[] {
       const results: RuleMatch[] = [];
       const lines = prompt.text.split('\n');
@@ -212,8 +213,13 @@ export const injectionRules: Rule[] = [
       // HTML comment containing an instruction-like verb. Comments are located
       // with indexOf rather than a lazy regex: `<!--.*?verb.*?-->` backtracks
       // cubically on a long line of unclosed "<!--" markers.
-      const instructionVerb =
-        /(?:ignore|disregard|system|instruction|reveal|override|forget|bypass|execute|always|never)/i;
+      // Strong verbs are suspicious on their own; weak ones ("always",
+      // "never", "execute") only when the comment addresses the model, so a
+      // plain "<!-- TODO: always keep this short -->" is not a finding.
+      const strongVerb = /\b(?:ignore|disregard|override|forget|bypass|reveal)\b/i;
+      const weakVerb = /\b(?:system|instructions?|execute|always|never)\b/i;
+      const addressee = /\b(?:you|your|assistant|ai|model|agent|llm|chatbot)\b/i;
+      const instructionVerb = { test: (body: string) => strongVerb.test(body) || (weakVerb.test(body) && addressee.test(body)) };
       const hasInstructionComment = (line: string): boolean => {
         let from = 0;
         for (;;) {

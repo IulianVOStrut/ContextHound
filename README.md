@@ -296,6 +296,15 @@ Run `hound init` to scaffold a `.contexthoundrc.json`, or create one manually:
 
 The config file is validated on every run. Unknown options (with a "did you mean" suggestion), wrong types, out-of-range numbers, invalid JSON and a missing `--config` path are all errors (exit code 1) rather than being silently ignored, because an ignored option can quietly disable a CI gate. The `$schema` line gives editors autocomplete and inline validation; keys starting with `_` are allowed for comments.
 
+### Prompt files and documentation
+
+Markdown and text files are split into two groups:
+
+- **Prompt files** get every rule: `*.prompt` and `*.prompt.*` files, files whose name mentions prompt, instruction, system message or persona, files in `prompts/`, `instructions/`, `personas/` or `skills/` folders, and agent instruction files (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.cursorrules`, `.windsurfrules`, `.clinerules`, `*.mdc`, `.cursor/rules/`, `.claude/`, `.github/copilot-instructions.md`, `.github/prompts/`, `llms.txt`, `SKILL.md`).
+- **Everything else** (README, changelogs, guides, datasets) is treated as documentation and only gets rules that indicate a real problem in any text: hidden Unicode characters, real secret values, and instructions hidden in HTML comments. A README that mentions an "API key" or quotes an attack phrase is not a finding.
+
+If your prompts live somewhere else, name or place them so they match, or scan them as `.prompt` files.
+
 ### Environment variable overrides
 
 All key settings can be overridden at runtime without editing the config file:
@@ -402,7 +411,7 @@ Reference it in `.contexthoundrc.json`:
 { "plugins": ["./my-rule.js"] }
 ```
 
-Plugin rules are subject to the same `excludeRules`, `includeRules`, and `minConfidence` filters as built-in rules.
+Plugin rules are subject to the same `excludeRules`, `includeRules`, and `minConfidence` filters as built-in rules. They run on every scanned file, including general documentation; set `docs: false` on a rule to limit it to prompt files and code.
 
 ### Baseline / diff mode
 

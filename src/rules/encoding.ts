@@ -71,6 +71,7 @@ export const encodingRules: Rule[] = [
     mitre: 'T1027',
     remediation:
       'Remove all invisible Unicode control characters (zero-width spaces, bidi overrides) from prompt source files. Add a Unicode normalization step to your ingestion pipeline and reject content containing unexpected control characters.',
+    docs: true,
     check(prompt: ExtractedPrompt): RuleMatch[] {
       const results: RuleMatch[] = [];
       const lines = prompt.text.split('\n');
@@ -104,6 +105,7 @@ export const encodingRules: Rule[] = [
     mitre: 'T1027',
     remediation:
       'Strip or reject all characters in the Unicode Tags block (U+E0000–U+E007F) from any externally sourced content before it enters a prompt. These invisible characters are used in active exploits to hide instructions from human reviewers while remaining readable to LLMs.',
+    docs: true,
     check(prompt: ExtractedPrompt): RuleMatch[] {
       // Tags block characters are in the supplementary plane; represented as
       // surrogate pairs \uDB40\uDC00–\uDB40\uDC7F in JS strings.
