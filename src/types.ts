@@ -35,6 +35,14 @@ export interface ScanResult {
   suppressedCount?: number;
   /** Suppression directives that never matched a finding (dead suppressions). */
   unusedSuppressions?: UnusedSuppression[];
+  /** Files not scanned because they exceed `maxFileSize`. */
+  skippedFiles?: SkippedFile[];
+}
+
+export interface SkippedFile {
+  file: string;
+  size: number;
+  reason: 'max-file-size';
 }
 
 export interface UnusedSuppression {
@@ -51,6 +59,8 @@ export interface AuditConfig {
   formats: OutputFormat[];
   out?: string;
   maxFindings?: number;
+  /** Files larger than this many bytes are skipped (and reported). 0 disables the limit. */
+  maxFileSize?: number;
   failOn?: FailOn;
   verbose: boolean;
   excludeRules?: string[];

@@ -208,7 +208,7 @@ export const ragRules: Rule[] = [
 
       // ${doc.metadata.X}, ${chunk.metadata.X}, ${document.metadata.X}, ${result.metadata.X}
       const metadataInterpolationPattern =
-        /\$\{[^}]*\b(?:doc|chunk|document|passage|result|item|record)\b[^}]*\.\s*metadata\s*[.[][^}]{0,80}\}/i;
+        /\$\{[^}]{0,200}?\b(?:doc|chunk|document|passage|result|item|record)\b[^}]{0,200}?\.\s*metadata\s*[.[][^}]{0,80}\}/i;
 
       // Suppress if a sanitiser or truncation is applied near the interpolation
       const sanitiserPattern =

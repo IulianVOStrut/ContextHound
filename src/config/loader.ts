@@ -10,6 +10,7 @@ interface RcFile {
   formats?: string[];
   out?: string;
   maxFindings?: number;
+  maxFileSize?: number;
   failOn?: string;
   verbose?: boolean;
   excludeRules?: string[];
@@ -47,6 +48,7 @@ export function loadConfig(configPath?: string, cwd: string = process.cwd()): Au
     formats: (rc.formats as AuditConfig['formats']) ?? DEFAULT_CONFIG.formats,
     out: rc.out,
     maxFindings: rc.maxFindings,
+    maxFileSize: rc.maxFileSize,
     failOn: rc.failOn as FailOn,
     verbose: rc.verbose ?? DEFAULT_CONFIG.verbose,
     excludeRules: rc.excludeRules,

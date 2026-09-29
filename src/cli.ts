@@ -17,6 +17,7 @@ import { buildCsvReport } from './report/csv.js';
 import { buildJunitReport } from './report/junit.js';
 import { toTerminalSafe } from './report/sanitize.js';
 import { allRules } from './rules/index.js';
+import { DEFAULT_MAX_FILE_SIZE } from './config/defaults.js';
 import type { AuditConfig, OutputFormat, FailOn, Confidence, Finding, ScanResult } from './types.js';
 
 const program = new Command();
@@ -60,6 +61,7 @@ program
       "formats": ["console"],
       "failOn": null,
       "maxFindings": null,
+      "maxFileSize": 1048576,
       "verbose": false,
       "excludeRules": [],
       "includeRules": [],
@@ -153,6 +155,7 @@ program
   .option('--fail-on <level>', 'Fail on first finding of this severity: critical|high|medium')
   .option('--max-findings <n>', 'Stop after N findings')
   .option('--fail-file-threshold <n>', 'Fail if any single file score >= N')
+  .option('--max-file-size <bytes>', 'Skip files larger than this many bytes (default: 1048576, 0 = no limit)')
   .option('-v, --verbose', 'Verbose output (show remediation and confidence)')
   .option('--dir <path>', 'Directory to scan (default: current working directory)')
   .option('--list-rules', 'Print all rules and exit')
@@ -172,6 +175,7 @@ program
     threshold?: string;
     failOn?: string;
     maxFindings?: string;
+    maxFileSize?: string;
     failFileThreshold?: string;
     verbose?: boolean;
     dir?: string;
@@ -234,6 +238,7 @@ program
       out: opts.out ?? fileConfig.out,
       failOn: (opts.failOn as FailOn) ?? fileConfig.failOn,
       maxFindings: opts.maxFindings ? parseInt(opts.maxFindings, 10) : fileConfig.maxFindings,
+      maxFileSize: opts.maxFileSize !== undefined ? parseInt(opts.maxFileSize, 10) : fileConfig.maxFileSize,
       failFileThreshold: opts.failFileThreshold
         ? parseInt(opts.failFileThreshold, 10)
         : fileConfig.failFileThreshold,
@@ -296,6 +301,16 @@ program
     // Console report always prints (unless only jsonl/json/sarif requested)
     if (formats.includes('console') || formats.length === 0) {
       printConsoleReport(result, config.verbose);
+    }
+
+    // Oversized files are reported on stderr so machine-readable stdout stays clean,
+    // and so padding a file past the limit cannot silently hide it.
+    if (result.skippedFiles?.length) {
+      const limit = config.maxFileSize ?? DEFAULT_MAX_FILE_SIZE;
+      console.warn(`Skipped ${result.skippedFiles.length} file(s) larger than ${limit} bytes (raise with --max-file-size):`);
+      for (const s of result.skippedFiles) {
+        console.warn(`  ${toTerminalSafe(path.relative(cwd, s.file) || s.file)} (${s.size} bytes)`);
+      }
     }
 
     // Inline-suppression summary

@@ -18,6 +18,11 @@ export interface Rule {
   check(prompt: ExtractedPrompt, filePath: string): RuleMatch[];
 }
 
+/** Escape text for literal use inside a RegExp built from scanned content. */
+export function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 const SEVERITY_WEIGHTS: Record<Severity, number> = {
   low: 5,
   medium: 15,

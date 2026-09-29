@@ -67,7 +67,7 @@ export const exfiltrationRules: Rule[] = [
     check(prompt: ExtractedPrompt): RuleMatch[] {
       // Match internal IPs/URLs but not plain words like "Acme Corp."
       // corp. only matches as a DNS label (e.g. host.corp.example)
-      const pattern = /(?:https?:\/\/(?:localhost|127\.|10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.)|(?:^|[/@])(?:internal|intranet)\.|[a-zA-Z0-9-]+\.corp\.[a-zA-Z]|\.internal(?:$|[/:#?]))/i;
+      const pattern = /(?:https?:\/\/(?:localhost|127\.|10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.)|(?:^|[/@])(?:internal|intranet)\.|(?<![a-zA-Z0-9-])[a-zA-Z0-9-]{1,63}\.corp\.[a-zA-Z]|\.internal(?:$|[/:#?]))/i;
       return matchPattern(prompt, pattern);
     },
   },

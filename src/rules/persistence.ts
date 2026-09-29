@@ -43,7 +43,7 @@ export const persistenceRules: Rule[] = [
       'Remove any prompt instruction or code that enables systemd units or writes service files to /etc/systemd or /lib/systemd. Registering a persistent service is an irreversible host-level change that must not be performed by an LLM agent without explicit human authorisation.',
     check(prompt: ExtractedPrompt): RuleMatch[] {
       const pattern =
-        /\bsystemctl\s+enable\b|\bsystemctl\s+daemon-reload\b|(?:>>?|tee|cp\b|mv\b)\s+[^\n]*(?:\/etc\/systemd\/|\/lib\/systemd\/|\.config\/systemd\/user\/)/i;
+        /\bsystemctl\s+enable\b|\bsystemctl\s+daemon-reload\b|(?:>>?|tee|cp\b|mv\b)\s+[^\n]{0,300}?(?:\/etc\/systemd\/|\/lib\/systemd\/|\.config\/systemd\/user\/)/i;
       return matchPattern(prompt, pattern);
     },
   },
@@ -58,7 +58,7 @@ export const persistenceRules: Rule[] = [
       'Remove any prompt instruction or code that writes plist files to /Library/LaunchDaemons or /Library/LaunchAgents, or that calls launchctl load. These operations register persistent background services on macOS and must not be performed by an LLM agent.',
     check(prompt: ExtractedPrompt): RuleMatch[] {
       const pattern =
-        /(?:>>?|tee|cp\b|mv\b)\s+[^\n]*\/Library\/Launch(?:Daemons|Agents)\/|\blaunchctl\s+load\b/i;
+        /(?:>>?|tee|cp\b|mv\b)\s+[^\n]{0,300}?\/Library\/Launch(?:Daemons|Agents)\/|\blaunchctl\s+load\b/i;
       return matchPattern(prompt, pattern);
     },
   },
@@ -119,7 +119,7 @@ export const persistenceRules: Rule[] = [
     check(prompt: ExtractedPrompt): RuleMatch[] {
       // curl/wget/nc/bash with full output suppression (>/dev/null 2>&1)
       const pattern =
-        /\b(?:curl|wget|fetch|nc|ncat|bash|python|perl)\b[^\n]*>\s*\/dev\/null\s+2>&1/i;
+        /\b(?:curl|wget|fetch|nc|ncat|bash|python|perl)\b[^\n]{0,300}?>\s*\/dev\/null\s+2>&1/i;
       return matchPattern(prompt, pattern);
     },
   },

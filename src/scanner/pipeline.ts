@@ -10,7 +10,8 @@ import { loadCache, saveCache, getCachedFindings, setCacheEntry, computeCacheSig
 import type { HoundCache } from './cache.js';
 import { parseSuppressions, applySuppressions } from './suppressions.js';
 import { getChangedFiles } from './gitDiff.js';
-import type { UnusedSuppression } from '../types.js';
+import type { UnusedSuppression, SkippedFile } from '../types.js';
+import { DEFAULT_MAX_FILE_SIZE } from '../config/defaults.js';
 
 async function loadHoundIgnore(cwd: string): Promise<string[]> {
   const p = path.join(cwd, '.houndignore');
@@ -117,6 +118,8 @@ export async function runScan(
   let totalFindings = 0;
   let totalSuppressed = 0;
   const unusedSuppressions: UnusedSuppression[] = [];
+  const skippedFiles: SkippedFile[] = [];
+  const maxFileSize = config.maxFileSize ?? DEFAULT_MAX_FILE_SIZE;
   let aborted = false;
 
   const tasks = files.map(file =>
@@ -128,6 +131,13 @@ export async function runScan(
       // cached; only the file read is repeated.
       let content: string;
       try {
+        if (maxFileSize > 0) {
+          const size = fs.statSync(file).size;
+          if (size > maxFileSize) {
+            skippedFiles.push({ file, size, reason: 'max-file-size' });
+            return;
+          }
+        }
         content = fs.readFileSync(file, 'utf8');
       } catch {
         return;
@@ -180,6 +190,10 @@ export async function runScan(
 
   const result = buildScanResult(fileResults, config);
   if (totalSuppressed > 0) result.suppressedCount = totalSuppressed;
+  if (skippedFiles.length > 0) {
+    skippedFiles.sort((a, b) => a.file.localeCompare(b.file));
+    result.skippedFiles = skippedFiles;
+  }
   if (config.reportUnusedSuppressions) {
     unusedSuppressions.sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line);
     result.unusedSuppressions = unusedSuppressions;

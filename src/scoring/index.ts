@@ -10,6 +10,15 @@ export function scoreLabel(score: number): 'low' | 'medium' | 'high' | 'critical
   return 'critical';
 }
 
+const reportedRuleErrors = new Set<string>();
+
+function reportRuleError(ruleId: string, filePath: string, err: unknown): void {
+  if (reportedRuleErrors.has(ruleId)) return;
+  reportedRuleErrors.add(ruleId);
+  const msg = err instanceof Error ? err.message : String(err);
+  console.warn(`Warning: rule ${ruleId} failed on ${filePath} and was skipped: ${msg}`);
+}
+
 function matchesFilter(id: string, pattern: string): boolean {
   return pattern.endsWith('*')
     ? id.startsWith(pattern.slice(0, -1))
@@ -40,7 +49,15 @@ export function analyzePrompt(
         if (confidenceOrder.indexOf(rule.confidence) < confidenceOrder.indexOf(config.minConfidence)) continue;
       }
 
-      const matches = rule.check(prompt, filePath);
+      let matches: ReturnType<Rule['check']>;
+      try {
+        matches = rule.check(prompt, filePath);
+      } catch (err) {
+        // A rule must never take the whole scan down: scanned content is
+        // untrusted and plugin rules are third-party code.
+        reportRuleError(rule.id, filePath, err);
+        continue;
+      }
       for (const match of matches) {
         const key = `${rule.id}:${filePath}:${match.lineStart}`;
         if (seen.has(key)) continue;

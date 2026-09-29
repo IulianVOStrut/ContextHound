@@ -1,5 +1,6 @@
 import path from 'path';
 import type { Rule, RuleMatch } from './types.js';
+import { escapeRegExp } from './types.js';
 import type { ExtractedPrompt } from '../scanner/extractor.js';
 
 function matchPattern(prompt: ExtractedPrompt, pattern: RegExp): RuleMatch[] {
@@ -33,9 +34,9 @@ export const injectionRules: Rule[] = [
       // JS/TS template literal: ${userInput}
       const jsPattern = new RegExp(`\\$\\{${USER_VARS}\\}`, 'i');
       // Python f-string: f"...{user_input}..."
-      const pyPattern = new RegExp(`\\bf['"].*\\{${USER_VARS}\\}`, 'i');
+      const pyPattern = new RegExp(`\\bf['"][^\\n]{0,300}?\\{${USER_VARS}\\}`, 'i');
       // C# interpolated string: $"...{UserInput}..."
-      const csPattern = new RegExp(`\\$['"].*\\{${USER_VARS}\\}`, 'i');
+      const csPattern = new RegExp(`\\$['"][^\\n]{0,300}?\\{${USER_VARS}\\}`, 'i');
       // Ruby string interpolation: "...#{variable}..."
       const rbPattern = new RegExp(`#\\{${USER_VARS}\\}`, 'i');
       // Swift string interpolation: "...\(variable)..."
@@ -62,13 +63,23 @@ export const injectionRules: Rule[] = [
       // Recognises: backtick fences, <USER> tags, explicit "untrusted" labels, and
       // sanitization/escaping function calls applied to the interpolated variable — the
       // primary source of false positives for teams that properly clean inputs before use.
+      // Character offset of each line, so the context window is taken around the
+      // matched line itself (not the first identical line) without rescanning.
+      const lines = prompt.text.split('\n');
+      const lineOffsets: number[] = [];
+      let offset = 0;
+      for (const l of lines) { lineOffsets.push(offset); offset += l.length + 1; }
+
       return allResults.filter(r => {
         const varName = r.evidence.match(/\$\{([^}]+)\}|#\{([^}]+)\}|\\?\(([^)]+)\)/)?.[1] ?? '';
-        const rootVar = varName.split('.')[0].trim();
-        const context = prompt.text.slice(
-          Math.max(0, prompt.text.indexOf(r.evidence) - 150),
-          prompt.text.indexOf(r.evidence) + 150
-        );
+        // The name comes from scanned text: only treat it as a variable when it is
+        // a plain identifier, and escape it before building a RegExp from it.
+        const rootCandidate = varName.split('.')[0].trim();
+        const rootVar = /^[A-Za-z_$][\w$]*$/.test(rootCandidate) ? escapeRegExp(rootCandidate) : '';
+        const idx = r.lineStart - prompt.lineStart;
+        const line = lines[idx] ?? '';
+        const pos = (lineOffsets[idx] ?? 0) + (line.length - line.trimStart().length);
+        const context = prompt.text.slice(Math.max(0, pos - 150), pos + 150);
         const hasBoundary = /(```|<USER>|<user>|\[USER\]|untrusted|user content|user input)/i.test(context);
         const hasSanitizer = rootVar
           ? new RegExp(
@@ -113,7 +124,7 @@ export const injectionRules: Rule[] = [
       // JS/TS template literal: ${context}, ${documents}, etc.
       const hasJsRagContext = /\$\{(?:context|documents?|chunks?|retrieved\w*|rag\w*|sources?|passages?)\}/i.test(prompt.text);
       // Python f-string: f"...{context}...", f"...{documents}..."
-      const hasPyRagContext = /\bf['"].*\{(?:context|documents?|chunks?|retrieved\w*|rag\w*|sources?)\}/i.test(prompt.text);
+      const hasPyRagContext = /\bf['"][^\n]{0,300}?\{(?:context|documents?|chunks?|retrieved\w*|rag\w*|sources?)\}/i.test(prompt.text);
       const hasRagContext = hasJsRagContext || hasPyRagContext;
       const hasSeparator = /(?:untrusted|external content|retrieved content|<context>|<document>|\[CONTEXT\]|---)/i.test(prompt.text);
       if (hasRagContext && !hasSeparator) {
@@ -198,12 +209,25 @@ export const injectionRules: Rule[] = [
       const results: RuleMatch[] = [];
       const lines = prompt.text.split('\n');
 
-      // HTML comment containing an instruction-like verb
-      const htmlCommentInjection =
-        /<!--.*?(?:ignore|disregard|system|instruction|reveal|override|forget|bypass|execute|always|never).*?-->/i;
+      // HTML comment containing an instruction-like verb. Comments are located
+      // with indexOf rather than a lazy regex: `<!--.*?verb.*?-->` backtracks
+      // cubically on a long line of unclosed "<!--" markers.
+      const instructionVerb =
+        /(?:ignore|disregard|system|instruction|reveal|override|forget|bypass|execute|always|never)/i;
+      const hasInstructionComment = (line: string): boolean => {
+        let from = 0;
+        for (;;) {
+          const open = line.indexOf('<!--', from);
+          if (open === -1) return false;
+          const close = line.indexOf('-->', open + 4);
+          if (close === -1) return false;
+          if (instructionVerb.test(line.slice(open + 4, close))) return true;
+          from = close + 3;
+        }
+      };
 
       lines.forEach((line, i) => {
-        if (htmlCommentInjection.test(line)) {
+        if (hasInstructionComment(line)) {
           results.push({
             evidence: line.trim(),
             lineStart: prompt.lineStart + i,
@@ -236,7 +260,7 @@ export const injectionRules: Rule[] = [
         const match = codeFenceVarPattern.exec(line);
         if (!match) return;
 
-        const varName = match[1].split('.')[0]; // root variable name
+        const varName = escapeRegExp(match[1].split(/[.[]/)[0]); // root variable name, regex-safe
         // Check preceding 5 lines for a .replace stripping backticks from this variable
         const lookback = lines.slice(Math.max(0, i - 5), i).join('\n');
         const hasSanitize = new RegExp(
@@ -353,7 +377,9 @@ export const injectionRules: Rule[] = [
       const text = prompt.text;
 
       // Plaintext role labels in transcript format
-      const roleLabelPattern = /^\s*(?:user|human|assistant|ai|system|developer)\s*:\s*\S/im;
+      // [ \t] rather than \s: under the m flag \s also matches newlines, which
+      // made this quadratic on long runs of blank lines.
+      const roleLabelPattern = /^[ \t]*(?:user|human|assistant|ai|system|developer)[ \t]*:[ \t]*\S/im;
       if (!roleLabelPattern.test(text)) return [];
 
       // Untrusted input concatenated nearby (template literal or string join with user-sourced var)

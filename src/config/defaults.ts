@@ -25,6 +25,9 @@ export const DEFAULT_EXCLUDE_GLOBS: string[] = [
   '**/pnpm-lock.yaml',
 ];
 
+/** 1 MiB. Larger files are almost always generated data, lockfiles or bundles. */
+export const DEFAULT_MAX_FILE_SIZE = 1024 * 1024;
+
 export const DEFAULT_CONFIG: AuditConfig = {
   include: DEFAULT_INCLUDE_GLOBS,
   exclude: DEFAULT_EXCLUDE_GLOBS,

@@ -156,6 +156,9 @@ hound scan --config .contexthoundrc.json  # set minConfidence: "high"
 
 # Fail if any single file scores >= 40
 hound scan --fail-file-threshold 40
+
+# Scan files up to 5 MB (default limit is 1 MiB; 0 = no limit)
+hound scan --max-file-size 5242880
 ```
 
 **Exit codes:**
@@ -227,6 +230,7 @@ Run `hound init` to scaffold a `.contexthoundrc.json`, or create one manually:
   "verbose": false,
   "failOn": "critical",
   "maxFindings": 50,
+  "maxFileSize": 1048576,
   "excludeRules": ["JBK-002"],
   "includeRules": [],
   "minConfidence": "medium",
@@ -248,6 +252,7 @@ Run `hound init` to scaffold a `.contexthoundrc.json`, or create one manually:
 | `verbose` | `false` | Show remediations and confidence per finding |
 | `failOn` | unset | Exit code 3 on first finding of: `critical`, `high`, or `medium` |
 | `maxFindings` | unset | Stop after N findings |
+| `maxFileSize` | `1048576` | Skip files larger than this many bytes (1 MiB). Skipped files are listed on stderr and in the JSON report's `skippedFiles`, so they are never dropped silently. `0` disables the limit. Also `--max-file-size <bytes>` |
 | `excludeRules` | `[]` | Rule IDs or prefix globs to skip (e.g. `"CMD-*"`, `"JBK-002"`) |
 | `includeRules` | `[]` | Run only these rule IDs (empty = run all) |
 | `minConfidence` | unset | Skip rules below this confidence: `low`, `medium`, or `high` |
