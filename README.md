@@ -416,7 +416,7 @@ hound scan --format json --out baseline
 hound scan --baseline baseline.json
 ```
 
-Findings are matched by `ruleId + file` — line shifts don't cause false new-finding alerts.
+Findings are matched by a fingerprint of rule, file, evidence text and occurrence, so line shifts elsewhere in a file don't raise false "new" findings, while a second instance of a rule in an already-baselined file is still reported. File paths in every report are relative to the git repository root (or the scan directory outside git), so a baseline saved on a laptop also matches in CI. Baselines saved by older versions still work.
 
 ### Changed-files-only (`--diff`)
 

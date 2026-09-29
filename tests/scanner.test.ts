@@ -65,7 +65,7 @@ describe('Scanner resilience', () => {
     const config = { ...DEFAULT_CONFIG, include: ['*.prompt'], exclude: [], cache: false, maxFileSize: 1024 };
     const result = await runScan(dir, config);
     expect(result.skippedFiles).toEqual([
-      { file: path.join(dir, 'big.prompt'), size: Buffer.byteLength(big), reason: 'max-file-size' },
+      { file: 'big.prompt', size: Buffer.byteLength(big), reason: 'max-file-size' },
     ]);
     expect(result.files.map(f => path.basename(f.file))).toEqual(['small.prompt']);
   });

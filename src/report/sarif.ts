@@ -1,5 +1,6 @@
 import type { ScanResult, Finding } from '../types.js';
 import { VERSION } from '../version.js';
+import { FINGERPRINT_VERSION } from '../scanner/fingerprint.js';
 
 interface SarifLog {
   version: string;
@@ -33,6 +34,7 @@ interface SarifResult {
   level: string;
   message: { text: string };
   locations: SarifLocation[];
+  partialFingerprints?: Record<string, string>;
 }
 
 interface SarifLocation {
@@ -99,6 +101,7 @@ export function buildSarifReport(result: ScanResult): string {
         },
       },
     }],
+    ...(f.fingerprint && { partialFingerprints: { [FINGERPRINT_VERSION]: f.fingerprint } }),
   }));
 
   const log: SarifLog = {

@@ -10,6 +10,8 @@ import { loadCache, saveCache, getCachedFindings, setCacheEntry, computeCacheSig
 import type { HoundCache } from './cache.js';
 import { parseSuppressions, applySuppressions } from './suppressions.js';
 import { getChangedFiles } from './gitDiff.js';
+import { createPathMapper } from './paths.js';
+import { assignFingerprints } from './fingerprint.js';
 import type { UnusedSuppression, SkippedFile } from '../types.js';
 import { DEFAULT_MAX_FILE_SIZE } from '../config/defaults.js';
 
@@ -83,6 +85,7 @@ export async function runScan(
   }
 
   let files = await discoverFiles(cwd, config);
+  const paths = createPathMapper(cwd);
 
   // --diff mode: restrict to files changed vs. a git ref (fast PR gate).
   if (config.diff) {
@@ -134,7 +137,7 @@ export async function runScan(
         if (maxFileSize > 0) {
           const size = fs.statSync(file).size;
           if (size > maxFileSize) {
-            skippedFiles.push({ file, size, reason: 'max-file-size' });
+            skippedFiles.push({ file: paths.toReport(file), size, reason: 'max-file-size' });
             return;
           }
         }
@@ -158,7 +161,7 @@ export async function runScan(
       if (config.reportUnusedSuppressions) {
         for (const d of directives) {
           if (!d.used) {
-            unusedSuppressions.push({ file, line: d.declaredLine, ruleIds: d.ruleIds, reason: d.reason });
+            unusedSuppressions.push({ file: paths.toReport(file), line: d.declaredLine, ruleIds: d.ruleIds, reason: d.reason });
           }
         }
       }
@@ -166,14 +169,19 @@ export async function runScan(
       if (kept.length === 0) return;
       if (aborted) return; // recheck after CPU work
 
+      // Report copies with portable paths and fingerprints. Cached findings are
+      // left untouched (they stay keyed to absolute paths).
+      const reportFile = paths.toReport(file);
+      const reported = assignFingerprints(kept.map(f => ({ ...f, file: reportFile })));
+
       if (onFinding) {
-        for (const f of kept) onFinding(f);
+        for (const f of reported) onFinding(f);
       }
 
-      const fileScore = scoreFile(kept);
-      fileResults.push({ file, findings: kept, fileScore });
+      const fileScore = scoreFile(reported);
+      fileResults.push({ file: reportFile, findings: reported, fileScore });
 
-      totalFindings += kept.length;
+      totalFindings += reported.length;
       if (config.maxFindings && totalFindings >= config.maxFindings) {
         aborted = true;
       }

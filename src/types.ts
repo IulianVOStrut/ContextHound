@@ -15,6 +15,8 @@ export interface Finding {
   remediation: string;
   riskPoints: number;
   mitre?: string;
+  /** Stable identity used by baselines and SARIF partialFingerprints. */
+  fingerprint?: string;
 }
 
 export interface FileResult {

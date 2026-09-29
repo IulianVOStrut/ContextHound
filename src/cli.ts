@@ -7,6 +7,7 @@ import { OUTPUT_FORMATS, FAIL_ON_LEVELS, CONFIDENCE_LEVELS } from './config/sche
 import { runScan } from './scanner/pipeline.js';
 import { resolveDiffRef } from './scanner/gitDiff.js';
 import { applyBaseline, loadBaseline } from './scanner/baseline.js';
+import { createPathMapper } from './scanner/paths.js';
 import { PRESETS, resolvePresets } from './config/presets.js';
 import { printConsoleReport } from './report/console.js';
 import { buildJsonReport } from './report/json.js';
@@ -284,7 +285,7 @@ program
       if (baselineFindings === null) {
         console.warn(`Warning: could not load baseline from ${config.baseline}; reporting all findings`);
       } else {
-        const outcome = applyBaseline(result, baselineFindings, config);
+        const outcome = applyBaseline(result, baselineFindings, config, createPathMapper(cwd).toReport);
         result = outcome.result;
         console.log(`Baseline: ${outcome.known} known · ${outcome.added} new · ${outcome.resolved} resolved`);
       }
@@ -301,7 +302,7 @@ program
       const limit = config.maxFileSize ?? DEFAULT_MAX_FILE_SIZE;
       console.warn(`Skipped ${result.skippedFiles.length} file(s) larger than ${limit} bytes (raise with --max-file-size):`);
       for (const s of result.skippedFiles) {
-        console.warn(`  ${toTerminalSafe(path.relative(cwd, s.file) || s.file)} (${s.size} bytes)`);
+        console.warn(`  ${toTerminalSafe(s.file)} (${s.size} bytes)`);
       }
     }
 
@@ -313,8 +314,7 @@ program
       console.log(`\nUnused suppressions (${result.unusedSuppressions.length}) — matched no finding:`);
       for (const u of result.unusedSuppressions) {
         const scope = u.ruleIds ? u.ruleIds.join(',') : 'all rules';
-        const rel = path.relative(cwd, u.file) || u.file;
-        console.log(`  ${toTerminalSafe(rel)}:${u.line}  [${scope}]${u.reason ? `  (${toTerminalSafe(u.reason)})` : ''}`);
+        console.log(`  ${toTerminalSafe(u.file)}:${u.line}  [${scope}]${u.reason ? `  (${toTerminalSafe(u.reason)})` : ''}`);
       }
     }
 
@@ -427,6 +427,7 @@ async function runWatchMode(cwd: string, config: AuditConfig, formats: OutputFor
   printConsoleReport(result, config.verbose);
 
   // Track findings by file for delta detection
+  const paths = createPathMapper(cwd);
   const prevFindings = new Map<string, string[]>();
   for (const fr of result.files) {
     prevFindings.set(fr.file, fr.findings.map(f => `${f.id}:${f.lineStart}`));
@@ -443,21 +444,22 @@ async function runWatchMode(cwd: string, config: AuditConfig, formats: OutputFor
 
   const handleChange = async (filePath: string) => {
     const absPath = path.isAbsolute(filePath) ? filePath : path.join(cwd, filePath);
-    console.log(`\n[changed] ${absPath}`);
+    const reportPath = paths.toReport(absPath);
+    console.log(`\n[changed] ${toTerminalSafe(reportPath)}`);
 
     try {
       result = await runScan(cwd, config);
       printConsoleReport(result, config.verbose);
 
       // Show delta for changed file
-      const newFr = result.files.find(f => f.file === absPath);
+      const newFr = result.files.find(f => f.file === reportPath);
       const newKeys = newFr ? newFr.findings.map(f => `${f.id}:${f.lineStart}`) : [];
-      const oldKeys = prevFindings.get(absPath) ?? [];
+      const oldKeys = prevFindings.get(reportPath) ?? [];
       const added = newKeys.filter(k => !oldKeys.includes(k));
       const removed = oldKeys.filter(k => !newKeys.includes(k));
       if (added.length > 0) console.log(`  +${added.length} new finding(s)`);
       if (removed.length > 0) console.log(`  -${removed.length} resolved finding(s)`);
-      prevFindings.set(absPath, newKeys);
+      prevFindings.set(reportPath, newKeys);
     } catch (err) {
       console.error('Error during re-scan:', err);
     }
