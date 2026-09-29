@@ -7,6 +7,65 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic V
 
 ## [Unreleased]
 
+Precision work: measured on a new benign corpus of 19 realistic files, the
+file-level false-positive rate drops from 52.6% to 0% with 15/15 detection,
+and MetaGPT on default settings goes from 192 findings (score 100) to 17.
+
+### Added
+
+- **Prompt files vs documentation.** Markdown and text files are classified.
+  Prompt files (prompt-named files and folders, agent instruction files such
+  as `AGENTS.md`, `CLAUDE.md`, `.cursorrules`, `*.mdc`, `.github/prompts`,
+  `SKILL.md`) get every rule; other docs only get rules marked `docs: true`
+  (hidden Unicode, secret values, instructions hidden in HTML comments).
+  Plugin rules keep running on docs unless they set `docs: false`.
+- **`EXF-008`**: hardcoded secret values (OpenAI, Anthropic, AWS, GitHub,
+  Slack, Google, GitLab, Hugging Face tokens, PEM private keys and
+  high-entropy literals assigned to secret-named keys), placeholders ignored,
+  evidence masked. Also runs on documentation.
+- **`hound-disable-file [RULE...]`** suppresses findings throughout a file.
+- **`RUNTIME_DEFAULT_RULES`**: the runtime guard runs a message-content rule
+  set by default (JBK, ENC, EXF-002, EXF-007, EXF-008, INJ-006).
+- **Benchmark** grows to 19 safe and 15 unsafe realistic fixtures.
+
+### Changed
+
+- **Scores combine instead of summing.** Each rule counts once per file and
+  rules combine as `100 x (1 - product of (1 - p/100))`; files are weighted
+  worst first with halving. Scores are lower for the same findings, so
+  revisit custom `threshold` values; `--fail-on` is the recommended CI gate.
+- **`EXF-001`** is high/medium instead of critical/high and only covers
+  credentials mentioned in prompt prose; secret values are `EXF-008`.
+- **Prompt-text rules no longer scan whole source files**: EXF-001, EXF-003,
+  INJ-002, INJ-004, RAG-004, TOOL-002 and TOOL-003.
+- **Runtime guard** uses `RUNTIME_DEFAULT_RULES` unless `policy.includeRules`
+  is set, and its score is combined per rule.
+
+### Fixed
+
+- **Base32 normaliser corrupted ordinary words**: any 8+ letter word could be
+  "decoded", so "password" reached rules as "x%+:#".
+- **JBK-001** matched "Jordan", "Sudan" and "Dan", "developer mode" and
+  "jailbreak" in any context, and system prompts that quote attacks to refuse
+  them.
+- **EXF-001** flagged `new OpenAI({ apiKey: process.env.X })` as critical;
+  **EXF-003** flagged the TypeScript `private` keyword.
+- **RAG-001** flagged `{ role: 'system', content: SYSTEM_PROMPT }`.
+- **OUT-003 / OUT-004** flagged `model.eval()`, `regex.exec()` and
+  `def eval(`.
+- **RAG-005 / RAG-006** treated `re.search()` as a vector-store query.
+- **INJ-001** flagged logging, comments, error-message f-strings and input
+  already wrapped in `<tag>...</tag>` or `[tag]...[/tag]`.
+- **INJ-006** treated harmless HTML comments such as "TODO: always ..." as
+  hidden instructions; **INJ-016** matched "template" in docstrings.
+- **Findings report the triggering line** instead of line 1 (INJ-002,
+  INJ-003, INJ-004, CMD-002, TOOL-002, TOOL-003).
+- **One-line template literals** such as ``const p = `You are ... ${input}`;``
+  were not extracted at all.
+- **Secret values in evidence**: EXF-007 and SKL-007 now mask the credential
+  so reports and SARIF uploads never carry it.
+- Suppression reasons no longer keep a trailing `-->` or `*/`.
+
 ---
 
 ## [2.1.0] - 2026-09-29

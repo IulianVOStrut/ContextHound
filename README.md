@@ -531,6 +531,7 @@ If your prompts include explicit safety language (input delimiters, refusal-to-r
 | EXF-005 | High | Sensitive variable (token, password, key) encoded as Base64 in output |
 | EXF-006 | High | Full prompt or message array logged via `console.log` / `logger.*` without redaction |
 | EXF-007 | Critical | Actual secret value embedded in prompt alongside a "never reveal" instruction |
+| EXF-008 | Critical | Hardcoded secret value (provider API keys, tokens, private keys, high-entropy credentials) in a prompt, source file or documentation; evidence is masked |
 
 ### C. Jailbreak (JBK)
 
