@@ -94,3 +94,29 @@ describe('buildScanResult', () => {
     expect(result.repoScore).toBe(100);
   });
 });
+
+describe('buildScanResult failures', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { buildScanResult } = require('../src/scoring/index') as typeof import('../src/scoring/index');
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { DEFAULT_CONFIG } = require('../src/config/defaults') as typeof import('../src/config/defaults');
+  const crit = { id: 'JBK-001', title: 't', severity: 'critical' as const, confidence: 'high' as const, evidence: 'e',
+    file: 'a.prompt', lineStart: 1, lineEnd: 1, remediation: '-', riskPoints: 50 };
+  const files = [{ file: 'a.prompt', findings: [crit], fileScore: 50 }];
+
+  it('has no failures when every gate passes', () => {
+    const r = buildScanResult(files, { ...DEFAULT_CONFIG, threshold: 60 });
+    expect(r.passed).toBe(true);
+    expect(r.failures).toBeUndefined();
+  });
+
+  it('records each failed gate with a readable reason', () => {
+    const r = buildScanResult(files, { ...DEFAULT_CONFIG, threshold: 40, failOn: 'high', failFileThreshold: 45 });
+    expect(r.passed).toBe(false);
+    expect(r.failures).toEqual([
+      { kind: 'threshold', message: 'repo score 50 is at or above the threshold of 40' },
+      { kind: 'fail-on', message: '1 finding(s) at high severity or above (fail-on: high)' },
+      { kind: 'file-threshold', message: '1 file(s) at or above the file threshold of 45 (highest: a.prompt with 50)' },
+    ]);
+  });
+});

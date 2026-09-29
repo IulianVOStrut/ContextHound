@@ -227,6 +227,10 @@ program
       throw err;
     }
     const formats = config.formats;
+    // Human-readable status lines go to stderr whenever stdout carries a
+    // machine-readable stream, so `--format jsonl | jq` sees only JSON.
+    const machineStdout = formats.includes('jsonl') && !config.out;
+    const status = machineStdout ? console.error : console.log;
 
     // Never scan our own report files: they quote evidence and would be
     // re-reported on every run.
@@ -250,13 +254,13 @@ program
     }
 
     if (config.verbose) {
-      console.log(`Scanning: ${cwd}`);
-      console.log(`Threshold: ${config.threshold}`);
-      console.log(`Formats: ${config.formats.join(', ')}`);
-      if (config.cache !== false) console.log('Cache: enabled (.hound-cache.json)');
-      if (config.plugins?.length) console.log(`Plugins: ${config.plugins.join(', ')}`);
-      if (config.baseline) console.log(`Baseline: ${config.baseline}`);
-      if (config.diff) console.log(`Diff: changed files vs. ${config.diff}`);
+      status(`Scanning: ${cwd}`);
+      status(`Threshold: ${config.threshold}`);
+      status(`Formats: ${config.formats.join(', ')}`);
+      if (config.cache !== false) status('Cache: enabled (.hound-cache.json)');
+      if (config.plugins?.length) status(`Plugins: ${config.plugins.join(', ')}`);
+      if (config.baseline) status(`Baseline: ${config.baseline}`);
+      if (config.diff) status(`Diff: changed files vs. ${config.diff}`);
     }
 
     // ── --watch mode ──────────────────────────────────────────────────────
@@ -287,7 +291,7 @@ program
       } else {
         const outcome = applyBaseline(result, baselineFindings, config, createPathMapper(cwd).toReport);
         result = outcome.result;
-        console.log(`Baseline: ${outcome.known} known · ${outcome.added} new · ${outcome.resolved} resolved`);
+        status(`Baseline: ${outcome.known} known · ${outcome.added} new · ${outcome.resolved} resolved`);
       }
     }
 
@@ -308,13 +312,13 @@ program
 
     // Inline-suppression summary
     if (result.suppressedCount) {
-      console.log(`Suppressed: ${result.suppressedCount} finding(s) via inline hound-disable comments`);
+      status(`Suppressed: ${result.suppressedCount} finding(s) via inline hound-disable comments`);
     }
     if (config.reportUnusedSuppressions && result.unusedSuppressions?.length) {
-      console.log(`\nUnused suppressions (${result.unusedSuppressions.length}) — matched no finding:`);
+      status(`\nUnused suppressions (${result.unusedSuppressions.length}), matched no finding:`);
       for (const u of result.unusedSuppressions) {
         const scope = u.ruleIds ? u.ruleIds.join(',') : 'all rules';
-        console.log(`  ${toTerminalSafe(u.file)}:${u.line}  [${scope}]${u.reason ? `  (${toTerminalSafe(u.reason)})` : ''}`);
+        status(`  ${toTerminalSafe(u.file)}:${u.line}  [${scope}]${u.reason ? `  (${toTerminalSafe(u.reason)})` : ''}`);
       }
     }
 
@@ -323,7 +327,7 @@ program
       const json = buildJsonReport(result);
       const outPath = config.out ? `${config.out}.json` : path.join(cwd, 'hound-results.json');
       fs.writeFileSync(outPath, json, 'utf8');
-      console.log(`JSON report written to: ${outPath}`);
+      status(`JSON report written to: ${outPath}`);
     }
 
     // SARIF report
@@ -333,7 +337,7 @@ program
         ? (config.out.endsWith('.sarif') ? config.out : `${config.out}.sarif`)
         : path.join(cwd, 'results.sarif');
       fs.writeFileSync(outPath, sarif, 'utf8');
-      console.log(`SARIF report written to: ${outPath}`);
+      status(`SARIF report written to: ${outPath}`);
     }
 
     // GitHub Annotations formatter
@@ -349,7 +353,7 @@ program
         ? (config.out.endsWith('.md') ? config.out : `${config.out}.md`)
         : path.join(cwd, 'hound-report.md');
       fs.writeFileSync(outPath, md, 'utf8');
-      console.log(`Markdown report written to: ${outPath}`);
+      status(`Markdown report written to: ${outPath}`);
     }
 
     // HTML report
@@ -359,7 +363,7 @@ program
         ? (config.out.endsWith('.html') ? config.out : `${config.out}.html`)
         : path.join(cwd, 'hound-report.html');
       fs.writeFileSync(outPath, html, 'utf8');
-      console.log(`HTML report written to: ${outPath}`);
+      status(`HTML report written to: ${outPath}`);
     }
 
     // CSV report
@@ -369,7 +373,7 @@ program
         ? (config.out.endsWith('.csv') ? config.out : `${config.out}.csv`)
         : path.join(cwd, 'hound-report.csv');
       fs.writeFileSync(outPath, csv, 'utf8');
-      console.log(`CSV report written to: ${outPath}`);
+      status(`CSV report written to: ${outPath}`);
     }
 
     // JUnit XML report
@@ -379,7 +383,7 @@ program
         ? (config.out.endsWith('.xml') ? config.out : `${config.out}.xml`)
         : path.join(cwd, 'hound-report.xml');
       fs.writeFileSync(outPath, junit, 'utf8');
-      console.log(`JUnit XML report written to: ${outPath}`);
+      status(`JUnit XML report written to: ${outPath}`);
     }
 
     // JSONL report (findings already streamed; write to file if --out set)
@@ -388,31 +392,17 @@ program
       if (config.out) {
         const outPath = config.out.endsWith('.jsonl') ? config.out : `${config.out}.jsonl`;
         fs.writeFileSync(outPath, jsonlOutput, 'utf8');
-        console.log(`JSONL report written to: ${outPath}`);
+        status(`JSONL report written to: ${outPath}`);
       } else {
         // Stream to stdout
         if (jsonlLines.length > 0) console.log(jsonlOutput);
       }
     }
 
-    // Exit codes:
-    // 0 = passed
-    // 1 = unhandled error (handled above with catch)
-    // 2 = threshold breached (score >= threshold)
-    // 3 = failOn violation
+    // Exit codes: 0 passed, 1 error or bad arguments, 2 threshold or file
+    // threshold breached, 3 fail-on violation (takes precedence).
     if (!result.passed) {
-      const thresholdFailed = result.repoScore >= config.threshold || result.fileThresholdBreached;
-      const failOnFailed = config.failOn != null && (() => {
-        const sev = config.failOn!;
-        if (sev === 'critical') return result.allFindings.some(f => f.severity === 'critical');
-        if (sev === 'high') return result.allFindings.some(f => f.severity === 'high' || f.severity === 'critical');
-        if (sev === 'medium') return result.allFindings.some(f => f.severity !== 'low');
-        return false;
-      })();
-
-      if (failOnFailed) process.exit(3);
-      if (thresholdFailed) process.exit(2);
-      process.exit(2); // fallback
+      process.exit(result.failures?.some(f => f.kind === 'fail-on') ? 3 : 2);
     }
     process.exit(0);
   });

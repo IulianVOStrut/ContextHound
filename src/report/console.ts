@@ -75,9 +75,11 @@ export function printConsoleReport(result: ScanResult, verbose: boolean = false)
   console.log();
 
   if (result.passed) {
-    console.log(`${GREEN}${BOLD}✓ PASSED${RESET} — score below threshold.`);
+    console.log(`${GREEN}${BOLD}✓ PASSED${RESET}: score ${result.repoScore} is below the threshold of ${result.threshold}.`);
   } else {
-    console.log(`${RED}${BOLD}✗ FAILED${RESET} — score meets or exceeds threshold.`);
+    const reasons = result.failures?.map(f => toTerminalSafe(f.message)) ?? ['score meets or exceeds threshold'];
+    console.log(`${RED}${BOLD}✗ FAILED${RESET}: ${reasons[0]}.`);
+    for (const r of reasons.slice(1)) console.log(`          ${r}.`);
   }
   console.log();
 }

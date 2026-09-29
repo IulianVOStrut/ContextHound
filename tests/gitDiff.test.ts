@@ -31,6 +31,49 @@ describe('getChangedFiles', () => {
   });
 });
 
+describe('getChangedFiles on a branch', () => {
+  let repo: string;
+  const git = (args: string[]) => execFileSync('git', args, { cwd: repo, encoding: 'utf8' });
+
+  beforeEach(() => {
+    repo = fs.mkdtempSync(path.join(os.tmpdir(), 'hound-mergebase-'));
+    git(['init', '-q', '-b', 'main']);
+    git(['config', 'user.email', 't@t.t']);
+    git(['config', 'user.name', 'test']);
+    fs.writeFileSync(path.join(repo, 'shared.ts'), 'export const a = 1;\n');
+    git(['add', '.']);
+    git(['commit', '-qm', 'base']);
+  });
+  afterEach(() => { fs.rmSync(repo, { recursive: true, force: true }); });
+
+  it('diffs against the merge base, so files changed only on the target branch are excluded', () => {
+    git(['checkout', '-qb', 'feature']);
+    fs.writeFileSync(path.join(repo, 'feature file.ts'), 'export const f = 1;\n');
+    git(['add', '.']);
+    git(['commit', '-qm', 'feature work']);
+    git(['checkout', '-q', 'main']);
+    fs.writeFileSync(path.join(repo, 'main-only.ts'), 'export const m = 1;\n');
+    git(['add', '.']);
+    git(['commit', '-qm', 'main moves on']);
+    git(['checkout', '-q', 'feature']);
+
+    const changed = getChangedFiles(repo, 'main');
+    const names = [...(changed ?? [])].map(p => path.basename(p));
+    expect(names).toContain('feature file.ts');
+    expect(names).not.toContain('main-only.ts');
+  });
+
+  it('keeps non-ASCII file names intact', () => {
+    fs.writeFileSync(path.join(repo, 'prompts-é.ts'), 'export const x = 1;\n');
+    const changed = getChangedFiles(repo, 'HEAD');
+    expect([...(changed ?? [])].map(p => path.basename(p))).toContain('prompts-é.ts');
+  });
+
+  it('refuses refs that look like options', () => {
+    expect(getChangedFiles(repo, '--output=/tmp/x')).toBeNull();
+  });
+});
+
 describe('--diff mode integration', () => {
   let repo: string;
   const git = (args: string[]) => execFileSync('git', args, { cwd: repo, encoding: 'utf8' });

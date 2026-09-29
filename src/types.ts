@@ -37,8 +37,16 @@ export interface ScanResult {
   suppressedCount?: number;
   /** Suppression directives that never matched a finding (dead suppressions). */
   unusedSuppressions?: UnusedSuppression[];
+  /** Why the scan failed its gates; absent when it passed. */
+  failures?: ScanFailure[];
   /** Files not scanned because they exceed `maxFileSize`. */
   skippedFiles?: SkippedFile[];
+}
+
+export interface ScanFailure {
+  /** threshold and file-threshold exit with 2, fail-on with 3. */
+  kind: 'threshold' | 'file-threshold' | 'fail-on';
+  message: string;
 }
 
 export interface SkippedFile {

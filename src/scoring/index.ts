@@ -1,7 +1,13 @@
-import type { Finding, FileResult, ScanResult, Severity, AuditConfig, Confidence } from '../types.js';
+import type { Finding, FileResult, ScanResult, ScanFailure, Severity, AuditConfig, Confidence } from '../types.js';
 import type { ExtractedPrompt } from '../scanner/extractor.js';
 import { allRules, ruleToFinding, scoreMitigations, mitigationReductionFor } from '../rules/index.js';
 import type { Rule } from '../rules/index.js';
+
+const SEVERITIES_AT_OR_ABOVE: Record<NonNullable<AuditConfig['failOn']>, Severity[]> = {
+  critical: ['critical'],
+  high: ['critical', 'high'],
+  medium: ['critical', 'high', 'medium'],
+};
 
 export function scoreLabel(score: number): 'low' | 'medium' | 'high' | 'critical' {
   if (score < 30) return 'low';
@@ -92,20 +98,31 @@ export function buildScanResult(
   const rawTotal = fileResults.reduce((sum, f) => sum + f.fileScore, 0);
   const repoScore = Math.min(100, rawTotal);
 
-  const hasCritical = allFindings.some(f => f.severity === 'critical');
-  const hasHighOrAbove = allFindings.some(f => f.severity === 'high' || f.severity === 'critical');
-  const hasMediumOrAbove = allFindings.some(f => (f.severity as Severity) !== 'low');
+  const failures: ScanFailure[] = [];
 
-  let passed = repoScore < config.threshold;
+  if (repoScore >= config.threshold) {
+    failures.push({ kind: 'threshold', message: `repo score ${repoScore} is at or above the threshold of ${config.threshold}` });
+  }
 
-  if (config.failOn === 'critical' && hasCritical) passed = false;
-  if (config.failOn === 'high' && hasHighOrAbove) passed = false;
-  if (config.failOn === 'medium' && hasMediumOrAbove) passed = false;
+  if (config.failOn) {
+    const gated = new Set<Severity>(SEVERITIES_AT_OR_ABOVE[config.failOn]);
+    const count = allFindings.filter(f => gated.has(f.severity)).length;
+    if (count > 0) {
+      failures.push({ kind: 'fail-on', message: `${count} finding(s) at ${config.failOn} severity or above (fail-on: ${config.failOn})` });
+    }
+  }
 
-  const fileThresholdBreached = config.failFileThreshold != null &&
-    fileResults.some(f => f.fileScore >= config.failFileThreshold!);
-
-  if (fileThresholdBreached) passed = false;
+  const overFileThreshold = config.failFileThreshold != null
+    ? fileResults.filter(f => f.fileScore >= config.failFileThreshold!)
+    : [];
+  const fileThresholdBreached = overFileThreshold.length > 0;
+  if (fileThresholdBreached) {
+    const worst = overFileThreshold.reduce((a, b) => (b.fileScore > a.fileScore ? b : a));
+    failures.push({
+      kind: 'file-threshold',
+      message: `${overFileThreshold.length} file(s) at or above the file threshold of ${config.failFileThreshold} (highest: ${worst.file} with ${worst.fileScore})`,
+    });
+  }
 
   return {
     repoScore,
@@ -113,7 +130,8 @@ export function buildScanResult(
     files: fileResults,
     allFindings,
     threshold: config.threshold,
-    passed,
+    passed: failures.length === 0,
     fileThresholdBreached,
+    ...(failures.length > 0 && { failures }),
   };
 }
