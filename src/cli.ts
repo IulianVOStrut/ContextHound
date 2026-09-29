@@ -18,6 +18,7 @@ import { buildCsvReport } from './report/csv.js';
 import { buildJunitReport } from './report/junit.js';
 import { toTerminalSafe } from './report/sanitize.js';
 import { allRules } from './rules/index.js';
+import { VERSION } from './version.js';
 import { DEFAULT_MAX_FILE_SIZE } from './config/defaults.js';
 import type { AuditConfig, OutputFormat, FailOn, Confidence, Finding } from './types.js';
 
@@ -26,7 +27,7 @@ const program = new Command();
 program
   .name('hound')
   .description('ContextHound: Scan LLM prompts for injection and security risks')
-  .version('2.0.0');
+  .version(VERSION);
 
 // ── init command ─────────────────────────────────────────────────────────────
 

@@ -1,4 +1,5 @@
 import type { ScanResult, Finding } from '../types.js';
+import { VERSION } from '../version.js';
 
 interface SarifLog {
   version: string;
@@ -107,7 +108,7 @@ export function buildSarifReport(result: ScanResult): string {
       tool: {
         driver: {
           name: 'ContextHound',
-          version: '1.0.0',
+          version: VERSION,
           informationUri: 'https://github.com/IulianVOStrut/ContextHound',
           rules: Array.from(rulesMap.values()),
         },

@@ -27,6 +27,17 @@ function runCli(args: string[], env?: Record<string, string>): {
   };
 }
 
+// ── --version ─────────────────────────────────────────────────────────────────
+
+describe('hound --version', () => {
+  it('prints the version from package.json', () => {
+    const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../package.json'), 'utf8')) as { version: string };
+    const result = runCli(['--version']);
+    expect(result.status).toBe(0);
+    expect(result.stdout.trim()).toBe(pkg.version);
+  });
+});
+
 // ── hound init ────────────────────────────────────────────────────────────────
 
 describe('hound init', () => {

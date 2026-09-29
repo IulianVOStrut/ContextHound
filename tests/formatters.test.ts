@@ -71,6 +71,13 @@ describe('SARIF formatter', () => {
     expect(sarif.runs[0].tool.driver.name).toBe('ContextHound');
   });
 
+  it('reports the package version as the tool driver version', () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const pkg = require('../package.json') as { version: string };
+    const sarif = JSON.parse(buildSarifReport(makeScanResult()));
+    expect(sarif.runs[0].tool.driver.version).toBe(pkg.version);
+  });
+
   it('includes correct rule IDs in tool driver', () => {
     const result = makeScanResult();
     const sarif = JSON.parse(buildSarifReport(result));
