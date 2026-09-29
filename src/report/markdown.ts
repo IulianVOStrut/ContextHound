@@ -1,5 +1,6 @@
 import fs from 'fs';
 import type { ScanResult, Severity } from '../types.js';
+import { escapeHtml, escapeMarkdownCell, markdownCode } from './sanitize.js';
 
 export function buildMarkdownReport(result: ScanResult): string {
   const passed = result.passed;
@@ -34,23 +35,23 @@ export function buildMarkdownReport(result: ScanResult): string {
 
     for (const fileResult of result.files) {
       if (fileResult.findings.length === 0) continue;
-      lines.push(`### \`${fileResult.file}\``);
+      lines.push(`### ${markdownCode(fileResult.file)}`);
       lines.push(`*File score: ${fileResult.fileScore}*`);
       lines.push('');
       lines.push('| Rule | Severity | Line | Title | MITRE |');
       lines.push('|------|----------|------|-------|-------|');
       for (const f of fileResult.findings) {
         const mitreCell = f.mitre ? `[${f.mitre}](https://attack.mitre.org/techniques/${f.mitre.replace('.', '/')})` : '';
-        lines.push(`| ${f.id} | ${f.severity} | ${f.lineStart} | ${f.title} | ${mitreCell} |`);
+        lines.push(`| ${escapeMarkdownCell(f.id)} | ${f.severity} | ${f.lineStart} | ${escapeMarkdownCell(f.title)} | ${mitreCell} |`);
       }
       lines.push('');
 
       // Remediation accordion blocks
       for (const f of fileResult.findings) {
         lines.push('<details>');
-        lines.push(`<summary><strong>${f.id}</strong> — ${f.title}</summary>`);
+        lines.push(`<summary><strong>${escapeHtml(f.id)}</strong>: ${escapeHtml(f.title)}</summary>`);
         lines.push('');
-        lines.push(`**Evidence:** \`${f.evidence}\``);
+        lines.push(`**Evidence:** ${markdownCode(f.evidence)}`);
         lines.push('');
         if (f.mitre) {
           lines.push(`**MITRE ATT&CK:** [${f.mitre}](https://attack.mitre.org/techniques/${f.mitre.replace('.', '/')})`);
@@ -69,7 +70,7 @@ export function buildMarkdownReport(result: ScanResult): string {
   // Write to GITHUB_STEP_SUMMARY if available
   const summaryPath = process.env.GITHUB_STEP_SUMMARY;
   if (summaryPath) {
-    fs.writeFileSync(summaryPath, output, 'utf8');
+    fs.appendFileSync(summaryPath, output + '\n', 'utf8');
   }
 
   return output;

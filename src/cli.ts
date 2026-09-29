@@ -15,6 +15,7 @@ import { buildJsonlReport } from './report/jsonl.js';
 import { buildHtmlReport } from './report/html.js';
 import { buildCsvReport } from './report/csv.js';
 import { buildJunitReport } from './report/junit.js';
+import { toTerminalSafe } from './report/sanitize.js';
 import { allRules } from './rules/index.js';
 import type { AuditConfig, OutputFormat, FailOn, Confidence, Finding, ScanResult } from './types.js';
 
@@ -306,7 +307,7 @@ program
       for (const u of result.unusedSuppressions) {
         const scope = u.ruleIds ? u.ruleIds.join(',') : 'all rules';
         const rel = path.relative(cwd, u.file) || u.file;
-        console.log(`  ${rel}:${u.line}  [${scope}]${u.reason ? `  — ${u.reason}` : ''}`);
+        console.log(`  ${toTerminalSafe(rel)}:${u.line}  [${scope}]${u.reason ? `  (${toTerminalSafe(u.reason)})` : ''}`);
       }
     }
 

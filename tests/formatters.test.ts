@@ -566,3 +566,66 @@ describe('MITRE formatter integration', () => {
     expect(xml).not.toContain('MITRE ATT');
   });
 });
+
+// ── Output escaping (untrusted scanned content) ───────────────────────────────
+
+describe('output escaping', () => {
+  it('CSV neutralises formula injection in any text cell', () => {
+    for (const lead of ['=', '+', '-', '@', '\t', '\r']) {
+      const f = makeFinding({ evidence: `${lead}HYPERLINK("http://evil.example","x")` });
+      const csv = buildCsvReport(makeScanResult({ allFindings: [f] }));
+      const evidenceCell = csv.split('\n').slice(1).join('\n');
+      expect(evidenceCell).toContain(`'${lead}HYPERLINK`);
+    }
+  });
+
+  it('CSV leaves ordinary values and line numbers untouched', () => {
+    const csv = buildCsvReport(makeScanResult());
+    expect(csv.split('\n')[1]).toMatch(/^INJ-001,high,high,src\/api\.ts,42,42,/);
+  });
+
+  it('GitHub annotations cannot inject workflow commands via file names', () => {
+    const f = makeFinding({ file: 'src/a,b:c.ts\n::add-mask::secret' });
+    const out = buildGithubAnnotationsReport(makeScanResult({ allFindings: [f] }));
+    expect(out.split('\n')).toHaveLength(1);
+    expect(out).toContain('file=src/a%2Cb%3Ac.ts%0A%3A%3Aadd-mask%3A%3Asecret,');
+  });
+
+  it('Markdown evidence cannot escape its code span', () => {
+    const evidence = 'x` ![t](https://evil.example/p.png) [fix](https://evil.example) `y';
+    const f = makeFinding({ evidence, file: 'src/`weird`.ts' });
+    const md = buildMarkdownReport(makeScanResult({ allFindings: [f], files: [{ file: f.file, findings: [f], fileScore: 30 }] }));
+    expect(md).toContain('**Evidence:** ``' + evidence + '``');
+    expect(md).toContain('### ``src/`weird`.ts``');
+  });
+
+  it('Markdown escapes titles in HTML summaries and table cells', () => {
+    const f = makeFinding({ title: 'a | b <img src=x onerror=alert(1)>' });
+    const md = buildMarkdownReport(makeScanResult({ allFindings: [f], files: [{ file: f.file, findings: [f], fileScore: 30 }] }));
+    expect(md).not.toContain('<img');
+    expect(md).toContain('a \\| b');
+  });
+
+  it('JUnit output drops characters that are illegal in XML', () => {
+    const f = makeFinding({ evidence: 'a\u0000b\u001bc' });
+    const xml = buildJunitReport(makeScanResult({ allFindings: [f] }));
+    expect(xml).toContain('Evidence: abc');
+  });
+});
+
+describe('sanitize helpers', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { toTerminalSafe, markdownCode } = require('../src/report/sanitize') as typeof import('../src/report/sanitize');
+
+  it('renders terminal escapes, bidi overrides and zero-width chars visibly', () => {
+    expect(toTerminalSafe('ok\u001b]52;c;ZXZpbA==\u0007')).toBe('ok<U+001B>]52;c;ZXZpbA==<U+0007>');
+    expect(toTerminalSafe('a‮b​c')).toBe('a<U+202E>b<U+200B>c');
+    expect(toTerminalSafe('tab\tkept')).toBe('tab\tkept');
+  });
+
+  it('markdownCode picks a fence longer than any backtick run', () => {
+    expect(markdownCode('plain')).toBe('`plain`');
+    expect(markdownCode('a ``b`` c')).toBe('```a ``b`` c```');
+    expect(markdownCode('`edge`')).toBe('`` `edge` ``');
+  });
+});

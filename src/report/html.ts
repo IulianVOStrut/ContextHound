@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import type { ScanResult } from '../types.js';
+import { escapeHtml } from './sanitize.js';
 
 // Scanned files are untrusted input: evidence, file paths and even config
 // values (threshold, labels) can be attacker-controlled via a pull request.
@@ -7,14 +8,6 @@ import type { ScanResult } from '../types.js';
 // inert JSON rather than executable script, and a CSP limits execution to the
 // single known script below.
 
-function escapeHtml(value: unknown): string {
-  return String(value)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
 
 /** JSON that is safe inside a <script> element: no "</script>", "<!--" or line separators. */
 export function toScriptSafeJson(value: unknown): string {

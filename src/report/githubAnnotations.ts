@@ -1,5 +1,6 @@
 import fs from 'fs';
 import type { ScanResult, Severity } from '../types.js';
+import { escapeAnnotationData, escapeAnnotationProperty } from './sanitize.js';
 
 function severityToLevel(severity: Severity): string {
   if (severity === 'critical' || severity === 'high') return 'error';
@@ -12,9 +13,11 @@ export function buildGithubAnnotationsReport(result: ScanResult): string {
 
   for (const finding of result.allFindings) {
     const level = severityToLevel(finding.severity);
-    const file = finding.file.replace(/\\/g, '/');
+    const file = escapeAnnotationProperty(finding.file.replace(/\\/g, '/'));
+    const title = escapeAnnotationProperty(finding.id);
+    const message = escapeAnnotationData(`${finding.title} [${finding.severity.toUpperCase()}]`);
     lines.push(
-      `::${level} file=${file},line=${finding.lineStart},endLine=${finding.lineEnd},title=${finding.id}::${finding.title} [${finding.severity.toUpperCase()}]`
+      `::${level} file=${file},line=${finding.lineStart},endLine=${finding.lineEnd},title=${title}::${message}`
     );
   }
 

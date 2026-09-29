@@ -1,4 +1,5 @@
 import type { ScanResult, Finding, Severity } from '../types.js';
+import { toTerminalSafe } from './sanitize.js';
 
 // ANSI color codes (no external dependency needed for basic colors)
 const RESET = '\x1b[0m';
@@ -32,8 +33,8 @@ function scoreColor(label: string): string {
 function printFinding(f: Finding, verbose: boolean): void {
   const color = severityColor(f.severity);
   console.log(`  ${color}[${f.severity.toUpperCase()}]${RESET} ${BOLD}${f.id}${RESET}: ${f.title}`);
-  console.log(`    ${DIM}File:${RESET} ${f.file}:${f.lineStart}`);
-  console.log(`    ${DIM}Evidence:${RESET} ${CYAN}${f.evidence}${RESET}`);
+  console.log(`    ${DIM}File:${RESET} ${toTerminalSafe(f.file)}:${f.lineStart}`);
+  console.log(`    ${DIM}Evidence:${RESET} ${CYAN}${toTerminalSafe(f.evidence)}${RESET}`);
   if (verbose) {
     console.log(`    ${DIM}Confidence:${RESET} ${f.confidence}`);
     if (f.mitre) console.log(`    ${DIM}MITRE:${RESET}      ${CYAN}${f.mitre}${RESET}`);
@@ -54,7 +55,7 @@ export function printConsoleReport(result: ScanResult, verbose: boolean = false)
     // Group by file
     for (const fileResult of result.files) {
       if (fileResult.findings.length === 0) continue;
-      console.log(`${BOLD}${fileResult.file}${RESET} ${DIM}(file score: ${fileResult.fileScore})${RESET}`);
+      console.log(`${BOLD}${toTerminalSafe(fileResult.file)}${RESET} ${DIM}(file score: ${fileResult.fileScore})${RESET}`);
       for (const f of fileResult.findings) {
         printFinding(f, verbose);
       }

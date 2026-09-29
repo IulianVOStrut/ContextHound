@@ -1,13 +1,5 @@
 import type { ScanResult } from '../types.js';
-
-function escapeCsv(value: string | number): string {
-  const s = String(value);
-  // Wrap in double-quotes if the value contains a comma, double-quote, or newline
-  if (s.includes(',') || s.includes('"') || s.includes('\n') || s.includes('\r')) {
-    return `"${s.replace(/"/g, '""')}"`;
-  }
-  return s;
-}
+import { escapeCsvCell as escapeCsv } from './sanitize.js';
 
 export function buildCsvReport(result: ScanResult): string {
   const headers = [
