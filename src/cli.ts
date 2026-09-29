@@ -2,7 +2,8 @@
 import { Command } from 'commander';
 import fs from 'fs';
 import path from 'path';
-import { loadConfig } from './config/loader.js';
+import { loadConfig, ConfigError, parseEnumOption, parseIntegerOption } from './config/loader.js';
+import { OUTPUT_FORMATS, FAIL_ON_LEVELS, CONFIDENCE_LEVELS } from './config/schema.js';
 import { runScan } from './scanner/pipeline.js';
 import { resolveDiffRef } from './scanner/gitDiff.js';
 import { applyBaseline, loadBaseline } from './scanner/baseline.js';
@@ -20,7 +21,7 @@ import { toTerminalSafe } from './report/sanitize.js';
 import { allRules } from './rules/index.js';
 import { VERSION } from './version.js';
 import { DEFAULT_MAX_FILE_SIZE, DEFAULT_INCLUDE_GLOBS, DEFAULT_EXCLUDE_GLOBS } from './config/defaults.js';
-import type { AuditConfig, OutputFormat, FailOn, Confidence, Finding } from './types.js';
+import type { AuditConfig, OutputFormat, Finding } from './types.js';
 
 const program = new Command();
 
@@ -43,7 +44,7 @@ program
     }
 
     const template = {
-      "_comment": "ContextHound configuration — https://github.com/IulianVOStrut/ContextHound",
+      "$schema": "https://raw.githubusercontent.com/IulianVOStrut/ContextHound/main/schema/contexthoundrc.schema.json",
       "include": DEFAULT_INCLUDE_GLOBS,
       "exclude": DEFAULT_EXCLUDE_GLOBS,
       "threshold": 60,
@@ -214,35 +215,17 @@ program
 
     const cwd = opts.dir ? path.resolve(opts.dir) : process.cwd();
 
-    // Load config file (includes env var overrides)
-    const fileConfig = loadConfig(opts.config, cwd);
-
-    // CLI options override config file and env vars
-    const formats = opts.format
-      ? opts.format.split(',').map(f => f.trim()).filter(Boolean) as OutputFormat[]
-      : fileConfig.formats;
-
-    const config: AuditConfig = {
-      ...fileConfig,
-      formats,
-      threshold: opts.threshold ? parseInt(opts.threshold, 10) : fileConfig.threshold,
-      out: opts.out ?? fileConfig.out,
-      failOn: (opts.failOn as FailOn) ?? fileConfig.failOn,
-      maxFindings: opts.maxFindings ? parseInt(opts.maxFindings, 10) : fileConfig.maxFindings,
-      maxFileSize: opts.maxFileSize !== undefined ? parseInt(opts.maxFileSize, 10) : fileConfig.maxFileSize,
-      failFileThreshold: opts.failFileThreshold
-        ? parseInt(opts.failFileThreshold, 10)
-        : fileConfig.failFileThreshold,
-      verbose: opts.verbose ?? fileConfig.verbose,
-      concurrency: opts.concurrency ? parseInt(opts.concurrency, 10) : fileConfig.concurrency,
-      // commander defaults --no-cache options to true, so only an explicit
-      // --no-cache (false) may override the config file.
-      cache: opts.cache === false ? false : fileConfig.cache,
-      baseline: opts.baseline ?? fileConfig.baseline,
-      minConfidence: (opts.minConfidence as Confidence | undefined) ?? fileConfig.minConfidence,
-      reportUnusedSuppressions: opts.reportUnusedSuppressions ?? fileConfig.reportUnusedSuppressions,
-      diff: resolveDiffRef(opts.diff) ?? fileConfig.diff,
-    };
+    let config: AuditConfig;
+    try {
+      config = buildConfig(opts, cwd);
+    } catch (err) {
+      if (err instanceof ConfigError) {
+        console.error(`Error: ${err.message}`);
+        process.exit(1);
+      }
+      throw err;
+    }
+    const formats = config.formats;
 
     // Never scan our own report files: they quote evidence and would be
     // re-reported on every run.
@@ -492,6 +475,63 @@ async function runWatchMode(cwd: string, config: AuditConfig, formats: OutputFor
   });
 
   void formats; // suppress unused warning
+}
+
+// ── config assembly ───────────────────────────────────────────────────────────
+
+interface ScanOptions {
+  config?: string;
+  format?: string;
+  out?: string;
+  threshold?: string;
+  failOn?: string;
+  maxFindings?: string;
+  maxFileSize?: string;
+  failFileThreshold?: string;
+  verbose?: boolean;
+  concurrency?: string;
+  cache?: boolean;
+  baseline?: string;
+  minConfidence?: string;
+  diff?: string | boolean;
+  reportUnusedSuppressions?: boolean;
+}
+
+/** Merge config file, env vars and CLI flags (CLI wins), validating every flag. */
+function buildConfig(opts: ScanOptions, cwd: string): AuditConfig {
+  const fileConfig = loadConfig(opts.config, cwd);
+
+  let formats = fileConfig.formats;
+  if (opts.format !== undefined) {
+    formats = opts.format.split(',').map(f => f.trim()).filter(Boolean)
+      .map(f => parseEnumOption('--format', f, OUTPUT_FORMATS));
+    if (formats.length === 0) throw new ConfigError('--format needs at least one format');
+  }
+
+  const int = (flag: string, value: string | undefined, min: number, max?: number) =>
+    value === undefined ? undefined : parseIntegerOption(flag, value, min, max);
+
+  return {
+    ...fileConfig,
+    formats,
+    threshold: int('--threshold', opts.threshold, 0, 100) ?? fileConfig.threshold,
+    out: opts.out ?? fileConfig.out,
+    failOn: opts.failOn !== undefined ? parseEnumOption('--fail-on', opts.failOn, FAIL_ON_LEVELS) : fileConfig.failOn,
+    maxFindings: int('--max-findings', opts.maxFindings, 1) ?? fileConfig.maxFindings,
+    maxFileSize: int('--max-file-size', opts.maxFileSize, 0) ?? fileConfig.maxFileSize,
+    failFileThreshold: int('--fail-file-threshold', opts.failFileThreshold, 0) ?? fileConfig.failFileThreshold,
+    verbose: opts.verbose ?? fileConfig.verbose,
+    concurrency: int('--concurrency', opts.concurrency, 1, 256) ?? fileConfig.concurrency,
+    // commander defaults --no-cache options to true, so only an explicit
+    // --no-cache (false) may override the config file.
+    cache: opts.cache === false ? false : fileConfig.cache,
+    baseline: opts.baseline ?? fileConfig.baseline,
+    minConfidence: opts.minConfidence !== undefined
+      ? parseEnumOption('--min-confidence', opts.minConfidence, CONFIDENCE_LEVELS)
+      : fileConfig.minConfidence,
+    reportUnusedSuppressions: opts.reportUnusedSuppressions ?? fileConfig.reportUnusedSuppressions,
+    diff: resolveDiffRef(opts.diff) ?? fileConfig.diff,
+  };
 }
 
 program.parse(process.argv);

@@ -1,0 +1,150 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/IulianVOStrut/ContextHound/main/schema/contexthoundrc.schema.json",
+  "title": "ContextHound configuration",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "URL or path of this JSON Schema."
+    },
+    "include": {
+      "description": "Glob patterns of files to scan.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "exclude": {
+      "description": "Glob patterns of files to skip.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "threshold": {
+      "description": "Fail (exit 2) when the repo risk score is at or above this value.",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "formats": {
+      "description": "Output formats.",
+      "type": "array",
+      "items": {
+        "enum": [
+          "console",
+          "json",
+          "sarif",
+          "github-annotations",
+          "markdown",
+          "jsonl",
+          "html",
+          "csv",
+          "junit"
+        ]
+      }
+    },
+    "out": {
+      "description": "Base path for report files.",
+      "type": "string"
+    },
+    "maxFindings": {
+      "description": "Stop after this many findings.",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1
+    },
+    "maxFileSize": {
+      "description": "Skip files larger than this many bytes. 0 disables the limit.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "failOn": {
+      "description": "Fail (exit 3) on any finding of this severity or above.",
+      "enum": [
+        "critical",
+        "high",
+        "medium",
+        null
+      ]
+    },
+    "verbose": {
+      "description": "Show remediation, confidence and MITRE IDs.",
+      "type": "boolean"
+    },
+    "excludeRules": {
+      "description": "Rule IDs or prefix globs (e.g. \"CMD-*\") to skip.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "includeRules": {
+      "description": "Run only these rule IDs or prefix globs. Empty runs all rules.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "minConfidence": {
+      "description": "Skip rules below this confidence.",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        null
+      ]
+    },
+    "failFileThreshold": {
+      "description": "Fail (exit 2) when any single file scores at or above this value.",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "concurrency": {
+      "description": "Maximum files processed in parallel.",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 256
+    },
+    "cache": {
+      "description": "Use the incremental scan cache (.hound-cache.json).",
+      "type": "boolean"
+    },
+    "baseline": {
+      "description": "Path to a previous JSON report; only new findings are reported.",
+      "type": "string"
+    },
+    "plugins": {
+      "description": "Paths to local .js files exporting a Rule or Rule[].",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "diff": {
+      "description": "Scan only files changed vs. this git ref (true means origin/main).",
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "const": true
+        }
+      ]
+    },
+    "reportUnusedSuppressions": {
+      "description": "List inline suppression comments that matched no finding.",
+      "type": "boolean"
+    }
+  },
+  "patternProperties": {
+    "^_": {}
+  },
+  "additionalProperties": false
+}

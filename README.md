@@ -248,6 +248,7 @@ Run `hound init` to scaffold a `.contexthoundrc.json`, or create one manually:
 
 ```json
 {
+  "$schema": "https://raw.githubusercontent.com/IulianVOStrut/ContextHound/main/schema/contexthoundrc.schema.json",
   "include": ["**/*.ts", "**/*.js", "**/*.py", "**/*.go", "**/*.rs", "**/*.md", "**/*.txt", "**/*.yaml"],
   "exclude": [
     "**/node_modules/**",
@@ -292,6 +293,8 @@ Run `hound init` to scaffold a `.contexthoundrc.json`, or create one manually:
 | `cache` | `true` | Enable incremental scan cache (`.hound-cache.json`); set `false` or use `--no-cache` to disable |
 | `plugins` | `[]` | Paths to local `.js` rule plugins; each must export a `Rule` or `Rule[]` |
 | `baseline` | unset | Path to a previous JSON report; only findings absent from the baseline are reported |
+
+The config file is validated on every run. Unknown options (with a "did you mean" suggestion), wrong types, out-of-range numbers, invalid JSON and a missing `--config` path are all errors (exit code 1) rather than being silently ignored, because an ignored option can quietly disable a CI gate. The `$schema` line gives editors autocomplete and inline validation; keys starting with `_` are allowed for comments.
 
 ### Environment variable overrides
 
