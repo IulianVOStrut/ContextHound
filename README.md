@@ -798,15 +798,17 @@ The benchmark scans two fixture directories:
 
 | Directory | Purpose |
 |-----------|---------|
-| `benchmarks/safe/` | 5 files with genuine safe patterns — expect **0** findings |
-| `benchmarks/unsafe/` | 8 files with real vulnerabilities — one rule each |
+| `benchmarks/safe/` | 19 realistic benign files: README, changelog and security docs, a news dataset, a system prompt that quotes attacks in order to refuse them, standard chat and RAG code with delimiters, Python logging, PyTorch `model.eval()`, configs. Expect **0** findings |
+| `benchmarks/unsafe/` | 15 files with real vulnerabilities, each labelled with the rule that must fire |
 
-**Results on v1.4.0:**
+**Results on 2.1.0:**
 
 ```
-File-level FP rate:   0.0%   (0 / 5 safe files produced findings)
-Detection rate:      100.0%  (8/8 expected findings triggered)
+File-level FP rate:   0.0%   (0 / 19 safe files produced findings)
+Detection rate:      100.0%  (15/15 expected findings triggered)
 ```
+
+On the same corpus, the rules as they were before 2.1.0 produced findings in 10 of the 19 safe files (52.6%). As a real-world check, scanning [MetaGPT](https://github.com/geekan/MetaGPT) with default settings went from 192 findings (score 100) to 17 (score 70), most of them unsafe deserialisation, `shell=True` with a variable, and agent prompts.
 
 The benchmark exits with code 1 if any false positives or false negatives are found, making it suitable as a CI quality gate for rule changes. To add a fixture, drop a file into `benchmarks/safe/` or `benchmarks/unsafe/` and update `benchmarks/labels.json` with the expected findings.
 
