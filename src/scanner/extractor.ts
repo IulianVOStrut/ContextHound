@@ -49,13 +49,23 @@ function tryDecodeBase32(s: string): string | null {
 }
 
 function decodeBase32Sequences(text: string): string {
-  // Match sequences of 8+ base32 characters (case-insensitive, optional padding).
-  // Use lookahead/lookbehind instead of \b so padding '=' chars don't break the boundary.
-  return text.replace(/(?<![A-Z2-7=])[A-Z2-7]{8,}={0,6}(?![A-Z2-7=])/gi, (match) => {
-    const stripped = match.replace(/=/g, '').toUpperCase();
+  // Base32 encoders emit uppercase A-Z and 2-7. Matching case-insensitively
+  // made every 8+ letter word a candidate, and any whose decoding happened to
+  // be printable was replaced: "password" became "x%+:#". Only uppercase runs
+  // are candidates, short ones need padding or a 2-7 digit, and the decoding
+  // must read like text before it replaces the original.
+  return text.replace(/(?<![A-Za-z2-7=])[A-Z2-7]{8,}={0,6}(?![A-Za-z2-7=])/g, (match) => {
+    const stripped = match.replace(/=/g, '');
+    // Short runs need a Base32 signal plain uppercase words lack: padding or a 2-7 digit.
+    if (stripped.length < 16 && !match.includes('=') && !/[2-7]/.test(stripped)) return match;
     const decoded = tryDecodeBase32(stripped);
-    return decoded ?? match;
+    return decoded && looksLikeText(decoded) ? decoded : match;
   });
+}
+
+function looksLikeText(s: string): boolean {
+  const letters = (s.match(/[A-Za-z ]/g) ?? []).length;
+  return letters / s.length >= 0.8 && /[a-z]/i.test(s);
 }
 
 // Maps common homoglyph vowels (Latin extended + combining) to ASCII equivalents.
