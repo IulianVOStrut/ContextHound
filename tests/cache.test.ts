@@ -89,7 +89,7 @@ describe('loadCache invalidation', () => {
 
   it('preserves entries when the signature matches', () => {
     const cache = loadCache(tmpDir, 'sig-1');
-    cache.entries['/x.ts'] = { mtime: 1, findings: [] };
+    cache.entries['/x.ts'] = { mtime: 1, size: 0, findings: [] };
     saveCache(tmpDir, cache);
 
     const reloaded = loadCache(tmpDir, 'sig-1');
@@ -98,7 +98,7 @@ describe('loadCache invalidation', () => {
 
   it('discards entries when the signature differs (stale ruleset/config)', () => {
     const cache = loadCache(tmpDir, 'sig-1');
-    cache.entries['/x.ts'] = { mtime: 1, findings: [] };
+    cache.entries['/x.ts'] = { mtime: 1, size: 0, findings: [] };
     saveCache(tmpDir, cache);
 
     const reloaded = loadCache(tmpDir, 'sig-2');

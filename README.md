@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/IulianVOStrut/ContextHound/actions/workflows/context-hound.yml/badge.svg)](https://github.com/IulianVOStrut/ContextHound/actions/workflows/context-hound.yml)
 [![npm](https://img.shields.io/npm/v/context-hound)](https://www.npmjs.com/package/context-hound)
-[![Node.js](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](https://nodejs.org)
+[![Node.js](https://img.shields.io/badge/node-%3E%3D20.19-brightgreen)](https://nodejs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.3-blue)](https://www.typescriptlang.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -156,6 +156,9 @@ hound scan --config .contexthoundrc.json  # set minConfidence: "high"
 
 # Fail if any single file scores >= 40
 hound scan --fail-file-threshold 40
+
+# Scan files up to 5 MB (default limit is 1 MiB; 0 = no limit)
+hound scan --max-file-size 5242880
 ```
 
 **Exit codes:**
@@ -171,10 +174,10 @@ hound scan --fail-file-threshold 40
 
 ## GitHub Actions
 
-Add to your workflow to block merges when prompt risk is too high:
+Use the ContextHound Action to scan on every push and pull request, upload findings to GitHub Code Scanning, and block merges on risky changes:
 
 ```yaml
-# .github/workflows/context-hound.yml
+# .github/workflows/contexthound.yml
 name: Prompt Audit
 
 on: [push, pull_request]
@@ -184,27 +187,58 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      security-events: write
+      security-events: write   # SARIF upload to Code Scanning
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v4
+      - uses: IulianVOStrut/ContextHound@v2
         with:
-          node-version: '20'
+          fail-on: high
+```
 
-      - run: npm install -g context-hound
+Findings appear in your repository's **Security > Code scanning** tab and as annotations on the pull request.
 
-      - run: hound scan --format console,sarif,github-annotations --out results.sarif
+| Input | Default | Description |
+|-------|---------|-------------|
+| `version` | the release matching the Action | Exact `context-hound` npm version to run |
+| `dir` | `.` | Directory to scan |
+| `config` | | Path to a `.contexthoundrc.json` |
+| `threshold` | config or `60` | Fail when the repo score is at or above this value |
+| `fail-on` | | Fail on any finding of this severity or above: `critical`, `high`, `medium` |
+| `min-confidence` | | Only report rules at or above `low`, `medium` or `high` confidence |
+| `diff` | | Scan only files changed vs. this git ref, e.g. `origin/${{ github.base_ref }}` (needs `fetch-depth: 0` on checkout) |
+| `preset` | | Comma-separated rule presets, e.g. `owasp-llm-top10` |
+| `sarif-out` | `results.sarif` | Where to write the SARIF report |
+| `upload-sarif` | `true` | Upload the report to Code Scanning |
+| `node-version` | | Set up this Node.js version first (default: use the runner's Node.js) |
+
+Outputs: `score`, `findings`, `passed` and `sarif-file`, for use in later steps.
+
+For stricter supply-chain hygiene, pin the Action to a release commit SHA instead of `@v2`.
+
+**Without the Action**, install the CLI directly:
+
+```yaml
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - run: npm install -g context-hound@2.1.0
+
+      - run: hound scan --format console,sarif,github-annotations --out results
 
       - name: Upload to GitHub Code Scanning
         if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: results.sarif
 ```
 
-Findings will appear in your repository's **Security > Code scanning** tab. The `github-annotations` format posts inline PR comments and writes a summary table to the GitHub step summary.
+The `github-annotations` format adds inline annotations to the pull request and writes a summary table to the GitHub step summary.
 
 ---
 
@@ -214,6 +248,7 @@ Run `hound init` to scaffold a `.contexthoundrc.json`, or create one manually:
 
 ```json
 {
+  "$schema": "https://raw.githubusercontent.com/IulianVOStrut/ContextHound/main/schema/contexthoundrc.schema.json",
   "include": ["**/*.ts", "**/*.js", "**/*.py", "**/*.go", "**/*.rs", "**/*.md", "**/*.txt", "**/*.yaml"],
   "exclude": [
     "**/node_modules/**",
@@ -227,6 +262,7 @@ Run `hound init` to scaffold a `.contexthoundrc.json`, or create one manually:
   "verbose": false,
   "failOn": "critical",
   "maxFindings": 50,
+  "maxFileSize": 1048576,
   "excludeRules": ["JBK-002"],
   "includeRules": [],
   "minConfidence": "medium",
@@ -240,14 +276,15 @@ Run `hound init` to scaffold a `.contexthoundrc.json`, or create one manually:
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `include` | `**/*.{ts,tsx,js,jsx,py,go,rs,java,kt,cs,php,rb,swift,vue,sh,bash,hs,md,txt,yaml,yml,json}` | Glob patterns to scan |
-| `exclude` | `**/node_modules/**`, `**/dist/**`, etc. | Glob patterns to ignore |
+| `include` | prompt, Markdown, text, YAML and JSON files, plus `ts tsx mts cts js jsx mjs cjs vue py go rs java kt kts cs php rb swift sh bash hs` | Glob patterns to scan. Run `hound init` to see the full list |
+| `exclude` | dependency, build and virtualenv directories (`node_modules`, `dist`, `build`, `vendor`, `target`, `.venv`, `venv`, `__pycache__`, `.next`, ...), lockfiles, minified JS and ContextHound's own reports | Glob patterns to ignore. Report files written with `--out` are excluded automatically |
 | `threshold` | `60` | Fail if repo score is at or above this value (exit code 2) |
-| `formats` | `["console"]` | Output formats: `console`, `json`, `sarif`, `github-annotations`, `markdown`, `jsonl`, `html` |
+| `formats` | `["console"]` | Output formats: `console`, `json`, `sarif`, `github-annotations`, `markdown`, `jsonl`, `html`, `csv`, `junit`. `--format` overrides this |
 | `out` | auto | Base path for file output |
 | `verbose` | `false` | Show remediations and confidence per finding |
 | `failOn` | unset | Exit code 3 on first finding of: `critical`, `high`, or `medium` |
 | `maxFindings` | unset | Stop after N findings |
+| `maxFileSize` | `1048576` | Skip files larger than this many bytes (1 MiB). Skipped files are listed on stderr and in the JSON report's `skippedFiles`, so they are never dropped silently. `0` disables the limit. Also `--max-file-size <bytes>` |
 | `excludeRules` | `[]` | Rule IDs or prefix globs to skip (e.g. `"CMD-*"`, `"JBK-002"`) |
 | `includeRules` | `[]` | Run only these rule IDs (empty = run all) |
 | `minConfidence` | unset | Skip rules below this confidence: `low`, `medium`, or `high` |
@@ -256,6 +293,17 @@ Run `hound init` to scaffold a `.contexthoundrc.json`, or create one manually:
 | `cache` | `true` | Enable incremental scan cache (`.hound-cache.json`); set `false` or use `--no-cache` to disable |
 | `plugins` | `[]` | Paths to local `.js` rule plugins; each must export a `Rule` or `Rule[]` |
 | `baseline` | unset | Path to a previous JSON report; only findings absent from the baseline are reported |
+
+The config file is validated on every run. Unknown options (with a "did you mean" suggestion), wrong types, out-of-range numbers, invalid JSON and a missing `--config` path are all errors (exit code 1) rather than being silently ignored, because an ignored option can quietly disable a CI gate. The `$schema` line gives editors autocomplete and inline validation; keys starting with `_` are allowed for comments.
+
+### Prompt files and documentation
+
+Markdown and text files are split into two groups:
+
+- **Prompt files** get every rule: `*.prompt` and `*.prompt.*` files, files whose name mentions prompt, instruction, system message or persona, files in `prompts/`, `instructions/`, `personas/` or `skills/` folders, and agent instruction files (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.cursorrules`, `.windsurfrules`, `.clinerules`, `*.mdc`, `.cursor/rules/`, `.claude/`, `.github/copilot-instructions.md`, `.github/prompts/`, `llms.txt`, `SKILL.md`).
+- **Everything else** (README, changelogs, guides, datasets) is treated as documentation and only gets rules that indicate a real problem in any text: hidden Unicode characters, real secret values, and instructions hidden in HTML comments. A README that mentions an "API key" or quotes an attack phrase is not a finding.
+
+If your prompts live somewhere else, name or place them so they match, or scan them as `.prompt` files.
 
 ### Environment variable overrides
 
@@ -292,6 +340,7 @@ context.push(doc.metadata.author);
 - `hound-disable-line [RULE...]` — suppress findings on the same line
 - `hound-disable-next-line [RULE...]` — suppress findings on the following line
 - `hound-disable [RULE...]` … `hound-enable [RULE...]` — suppress a block (auto-closed at end of file)
+- `hound-disable-file [RULE...]` anywhere in a file: suppress findings throughout that file (for example a collection of attack samples)
 - Omit rule IDs to suppress **all** rules at that location; list one or more (space/comma separated) to scope it
 - Text after `--` is a free-form justification, surfaced in reports
 
@@ -329,7 +378,7 @@ ContextHound ships a [pre-commit](https://pre-commit.com) hook. Add it to your `
 ```yaml
 repos:
   - repo: https://github.com/IulianVOStrut/ContextHound
-    rev: v2.0.0
+    rev: v2.1.0
     hooks:
       - id: contexthound
         # optional — scan only changed files and fail on high-severity findings:
@@ -363,7 +412,7 @@ Reference it in `.contexthoundrc.json`:
 { "plugins": ["./my-rule.js"] }
 ```
 
-Plugin rules are subject to the same `excludeRules`, `includeRules`, and `minConfidence` filters as built-in rules.
+Plugin rules are subject to the same `excludeRules`, `includeRules`, and `minConfidence` filters as built-in rules. They run on every scanned file, including general documentation; set `docs: false` on a rule to limit it to prompt files and code.
 
 ### Baseline / diff mode
 
@@ -377,7 +426,7 @@ hound scan --format json --out baseline
 hound scan --baseline baseline.json
 ```
 
-Findings are matched by `ruleId + file` — line shifts don't cause false new-finding alerts.
+Findings are matched by a fingerprint of rule, file, evidence text and occurrence, so line shifts elsewhere in a file don't raise false "new" findings, while a second instance of a rule in an already-baselined file is still reported. File paths in every report are relative to the git repository root (or the scan directory outside git), so a baseline saved on a laptop also matches in CI. Baselines saved by older versions still work.
 
 ### Changed-files-only (`--diff`)
 
@@ -391,17 +440,50 @@ hound scan --diff HEAD~5        # vs. an arbitrary ref
 
 Covers committed, staged, unstaged, and untracked-but-not-ignored files. If git is unavailable or the ref can't be resolved (e.g. a shallow CI clone), ContextHound prints a warning and falls back to a full scan rather than silently passing. Combine with `--baseline` for findings-level diffing, or use `--diff` alone for the fastest PR feedback.
 
+### Library usage
+
+ContextHound can also be used from Node.js. Importing it has no side effects, and every formatter returns a string without writing files:
+
+```js
+const { loadConfig, runScan, buildSarifReport } = require('context-hound');
+
+const config = loadConfig(undefined, process.cwd());
+const result = await runScan(process.cwd(), config);
+console.log(result.repoScore, result.passed, result.failures);
+fs.writeFileSync('results.sarif', buildSarifReport(result));
+```
+
+The runtime guard is available as `require('context-hound/runtime')` and the config JSON Schema as `context-hound/schema.json`.
+
+```js
+const { createGuard } = require('context-hound/runtime');
+
+const guard = createGuard({ policy: { critical: 'block', high: 'warn' } });
+const answer = await guard.wrap(messages, () => client.chat.completions.create({ model, messages }));
+```
+
+By default the guard runs only the rules that make sense on live message content (`RUNTIME_DEFAULT_RULES`: jailbreak phrases, encoding and steganography, system-prompt extraction, secret values and hidden comment instructions), so ordinary user messages are not blocked by code-oriented rules. Set `policy.includeRules` to choose your own set; rules passed as `extraRules` always run.
+
 ---
 
 ## Risk Scoring
 
-Each finding carries **risk points** calculated as:
+Each finding carries **risk points**:
 
 ```
 risk_points = severity_weight × confidence_multiplier
 ```
 
-Points are totalled, capped at 100, and classified:
+Severity weights are 50 (critical), 30 (high), 15 (medium) and 5 (low); confidence multiplies by 1.0 (high), 0.75 (medium) or 0.5 (low).
+
+Points are combined, not summed, so scores rise with risk without saturating after a couple of findings:
+
+```
+combine(p1..pn) = 100 × (1 − (1 − p1/100) × … × (1 − pn/100))
+```
+
+- **File score:** each rule counts once per file (at its highest points), and different rules are combined. Two unrelated critical findings in one file score 75.
+- **Repo score:** files are sorted worst first and each further file counts half as much as the one before, so the score reflects how serious the worst problems are rather than how large the repository is.
 
 | Score | Level | Suggested action |
 |-------|-------|-----------------|
@@ -410,7 +492,9 @@ Points are totalled, capped at 100, and classified:
 | 60-79 | 🟠 High | Fix before merging |
 | 80-100 | 🔴 Critical | Block deployment |
 
-If your prompts include explicit safety language (input delimiters, refusal-to-reveal instructions, tool allowlists), risk points for that prompt are reduced proportionally.
+For CI gates, `--fail-on high` (or `critical`) is the most predictable control: it fails on any new finding of that severity regardless of score. The score and `--threshold` are best used as a trend signal.
+
+If your prompts include explicit safety language (input delimiters, refusal-to-reveal instructions, tool allowlists), risk points for the findings those mitigations address are reduced.
 
 ---
 
@@ -447,6 +531,7 @@ If your prompts include explicit safety language (input delimiters, refusal-to-r
 | EXF-005 | High | Sensitive variable (token, password, key) encoded as Base64 in output |
 | EXF-006 | High | Full prompt or message array logged via `console.log` / `logger.*` without redaction |
 | EXF-007 | Critical | Actual secret value embedded in prompt alongside a "never reveal" instruction |
+| EXF-008 | Critical | Hardcoded secret value (provider API keys, tokens, private keys, high-entropy credentials) in a prompt, source file or documentation; evidence is masked |
 
 ### C. Jailbreak (JBK)
 
@@ -625,19 +710,29 @@ By severity: critical: 2  high: 2  medium: 1
 ```
 src/
 ├── cli.ts                  # CLI entry point (Commander.js)
+├── index.ts                # Library entry point (require('context-hound'))
+├── version.ts              # Version read from package.json
 ├── types.ts                # Shared TypeScript types
 ├── config/
 │   ├── defaults.ts         # Default include/exclude globs and settings
-│   └── loader.ts           # .contexthoundrc.json loader + env var overrides
+│   ├── loader.ts           # .contexthoundrc.json loader, env var overrides, option parsing
+│   ├── schema.ts           # Config spec: validator and JSON Schema generator
+│   └── presets.ts          # Rule presets (--preset)
 ├── scanner/
 │   ├── discover.ts         # File discovery via fast-glob
 │   ├── extractor.ts        # Prompt extraction (raw, code, structured)
 │   ├── languages.ts        # LLM API trigger patterns per language extension
 │   ├── cache.ts            # Incremental scan cache (.hound-cache.json)
+│   ├── suppressions.ts     # Inline hound-disable directives
+│   ├── gitDiff.ts          # Changed files for --diff (merge base)
+│   ├── paths.ts            # Portable, repository-relative report paths
+│   ├── fingerprint.ts      # Stable finding fingerprints
+│   ├── baseline.ts         # Baseline comparison (--baseline)
 │   └── pipeline.ts         # Orchestrates the full scan; parallel + cache + plugins
 ├── rules/
 │   ├── types.ts            # Rule interface and scoring helpers
 │   ├── injection.ts        # INJ-* rules
+│   ├── taint.ts            # INJ-015 taint analysis
 │   ├── exfiltration.ts     # EXF-* rules
 │   ├── jailbreak.ts        # JBK-* rules
 │   ├── unsafeTools.ts      # TOOL-* rules
@@ -651,22 +746,28 @@ src/
 │   ├── mcp.ts              # MCP-* rules
 │   ├── supplyChain.ts      # SCH-* rules
 │   ├── dos.ts              # DOS-* rules
+│   ├── persistence.ts      # PST-* rules
 │   ├── mitigation.ts       # Mitigation presence detection
 │   └── index.ts            # Rule registry
 ├── runtime/
-│   ├── index.ts            # createGuard() — runtime message inspection API
+│   ├── index.ts            # createGuard(): runtime message inspection API
 │   ├── inspect.ts          # Core inspection logic for live message arrays
 │   └── types.ts            # RuntimeMessage, InspectResult, GuardConfig types
 ├── scoring/
-│   └── index.ts            # Risk score calculation and rule filtering
+│   └── index.ts            # Risk score, gates and rule filtering
 └── report/
     ├── console.ts          # ANSI-coloured terminal output
     ├── json.ts             # JSON report builder
+    ├── jsonl.ts            # JSONL formatter
     ├── sarif.ts            # SARIF 2.1.0 report builder
-    ├── githubAnnotations.ts# GitHub Actions annotation formatter
+    ├── githubAnnotations.ts# GitHub Actions annotations and step summary
     ├── markdown.ts         # Markdown report with findings tables
-    ├── jsonl.ts            # JSONL streaming formatter
-    └── html.ts             # Self-contained interactive HTML report
+    ├── html.ts             # Self-contained interactive HTML report
+    ├── csv.ts              # CSV report
+    ├── junit.ts            # JUnit XML report
+    └── sanitize.ts         # Escaping for untrusted scanned content
+schema/
+└── contexthoundrc.schema.json  # JSON Schema for the config file (npm run schema)
 attacks/                    # Example injection strings (not executed against models)
 tests/
 ├── fixtures/               # Sample prompts for testing
@@ -677,10 +778,11 @@ tests/
 ├── formatters.test.ts      # Unit tests for all report formatters
 ├── mitigation.test.ts      # Unit tests for mitigation detection
 └── cli.test.ts             # CLI integration tests (init, list-rules, exit codes)
+action.yml                  # Composite GitHub Action (uses: IulianVOStrut/ContextHound@v2)
 .github/
-├── action.yml              # Reusable composite GitHub Action
 └── workflows/
-    └── context-hound.yml    # CI workflow
+    ├── context-hound.yml    # CI workflow
+    └── release.yml          # Tag-triggered npm publish with provenance
 ```
 
 ---
@@ -697,15 +799,17 @@ The benchmark scans two fixture directories:
 
 | Directory | Purpose |
 |-----------|---------|
-| `benchmarks/safe/` | 5 files with genuine safe patterns — expect **0** findings |
-| `benchmarks/unsafe/` | 8 files with real vulnerabilities — one rule each |
+| `benchmarks/safe/` | 19 realistic benign files: README, changelog and security docs, a news dataset, a system prompt that quotes attacks in order to refuse them, standard chat and RAG code with delimiters, Python logging, PyTorch `model.eval()`, configs. Expect **0** findings |
+| `benchmarks/unsafe/` | 15 files with real vulnerabilities, each labelled with the rule that must fire |
 
-**Results on v1.4.0:**
+**Results on 2.1.0:**
 
 ```
-File-level FP rate:   0.0%   (0 / 5 safe files produced findings)
-Detection rate:      100.0%  (8/8 expected findings triggered)
+File-level FP rate:   0.0%   (0 / 19 safe files produced findings)
+Detection rate:      100.0%  (15/15 expected findings triggered)
 ```
+
+On the same corpus, the rules as they were before 2.1.0 produced findings in 10 of the 19 safe files (52.6%). As a real-world check, scanning [MetaGPT](https://github.com/geekan/MetaGPT) with default settings went from 192 findings (score 100) to 17 (score 70), most of them unsafe deserialisation, `shell=True` with a variable, and agent prompts.
 
 The benchmark exits with code 1 if any false positives or false negatives are found, making it suitable as a CI quality gate for rule changes. To add a fixture, drop a file into `benchmarks/safe/` or `benchmarks/unsafe/` and update `benchmarks/labels.json` with the expected findings.
 

@@ -1,13 +1,5 @@
 import type { ScanResult } from '../types.js';
-
-function escapeXml(value: string | number): string {
-  return String(value)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
-}
+import { escapeXml } from './sanitize.js';
 
 export function buildJunitReport(result: ScanResult): string {
   const lines: string[] = ['<?xml version="1.0" encoding="UTF-8"?>'];

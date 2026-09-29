@@ -15,6 +15,8 @@ export interface Finding {
   remediation: string;
   riskPoints: number;
   mitre?: string;
+  /** Stable identity used by baselines and SARIF partialFingerprints. */
+  fingerprint?: string;
 }
 
 export interface FileResult {
@@ -35,6 +37,22 @@ export interface ScanResult {
   suppressedCount?: number;
   /** Suppression directives that never matched a finding (dead suppressions). */
   unusedSuppressions?: UnusedSuppression[];
+  /** Why the scan failed its gates; absent when it passed. */
+  failures?: ScanFailure[];
+  /** Files not scanned because they exceed `maxFileSize`. */
+  skippedFiles?: SkippedFile[];
+}
+
+export interface ScanFailure {
+  /** threshold and file-threshold exit with 2, fail-on with 3. */
+  kind: 'threshold' | 'file-threshold' | 'fail-on';
+  message: string;
+}
+
+export interface SkippedFile {
+  file: string;
+  size: number;
+  reason: 'max-file-size';
 }
 
 export interface UnusedSuppression {
@@ -51,6 +69,8 @@ export interface AuditConfig {
   formats: OutputFormat[];
   out?: string;
   maxFindings?: number;
+  /** Files larger than this many bytes are skipped (and reported). 0 disables the limit. */
+  maxFileSize?: number;
   failOn?: FailOn;
   verbose: boolean;
   excludeRules?: string[];

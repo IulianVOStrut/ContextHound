@@ -13,20 +13,30 @@ export function resolveDiffRef(diff: string | boolean | undefined): string | nul
 }
 
 /**
- * Absolute paths of files that differ from `ref` — tracked changes plus
- * untracked-but-not-ignored files. Returns null if git is unavailable or the
- * ref can't be resolved (caller should fall back to a full scan).
+ * Absolute paths of files changed on this branch: everything that differs
+ * between the merge base of `ref` and HEAD and the working tree (committed,
+ * staged and unstaged), plus untracked-but-not-ignored files. Diffing against
+ * the merge base rather than `ref` itself keeps files that only changed on
+ * the target branch out of a PR scan. Returns null if git is unavailable or
+ * the ref can't be resolved (caller should fall back to a full scan).
  */
 export function getChangedFiles(cwd: string, ref: string): Set<string> | null {
+  // A ref that looks like an option would be parsed as one by git.
+  if (ref.startsWith('-')) return null;
   try {
     const run = (args: string[]) =>
       execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
     const root = run(['rev-parse', '--show-toplevel']).trim();
-    const tracked = run(['diff', '--name-only', ref]);
-    const untracked = run(['ls-files', '--others', '--exclude-standard']);
-    const rels = [...tracked.split('\n'), ...untracked.split('\n')]
-      .map(s => s.trim())
-      .filter(Boolean);
+    let base = ref;
+    try {
+      base = run(['merge-base', ref, 'HEAD']).trim() || ref;
+    } catch {
+      // No common ancestor (or no HEAD yet): compare against the ref itself.
+    }
+    // -z keeps unusual file names (spaces, quotes, non-ASCII) unquoted.
+    const tracked = run(['diff', '--name-only', '-z', base, '--']);
+    const untracked = run(['ls-files', '--others', '--exclude-standard', '-z']);
+    const rels = [...tracked.split('\0'), ...untracked.split('\0')].filter(Boolean);
     return new Set(rels.map(r => path.resolve(root, r)));
   } catch {
     return null;

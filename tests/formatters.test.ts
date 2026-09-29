@@ -71,6 +71,13 @@ describe('SARIF formatter', () => {
     expect(sarif.runs[0].tool.driver.name).toBe('ContextHound');
   });
 
+  it('reports the package version as the tool driver version', () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const pkg = require('../package.json') as { version: string };
+    const sarif = JSON.parse(buildSarifReport(makeScanResult()));
+    expect(sarif.runs[0].tool.driver.version).toBe(pkg.version);
+  });
+
   it('includes correct rule IDs in tool driver', () => {
     const result = makeScanResult();
     const sarif = JSON.parse(buildSarifReport(result));
@@ -274,6 +281,53 @@ describe('HTML formatter', () => {
     // Must not load external scripts, images, or stylesheets
     expect(html).not.toMatch(/src="https?:\/\//);
     expect(html).not.toMatch(/<link[^>]*href="https?:\/\//);
+  });
+
+  describe('untrusted content', () => {
+    const payload = '</script><script>alert(document.domain)</script><!--';
+
+    it('cannot break out of the data block via evidence or file path', () => {
+      const f = makeFinding({ evidence: payload, file: `src/${payload}.ts` });
+      const html = buildHtmlReport(makeScanResult({ allFindings: [f], files: [{ file: f.file, findings: [f], fileScore: 30 }] }));
+      expect(html).not.toContain(payload);
+      expect(html).not.toContain('<script>alert');
+      // Exactly the two script elements the template defines.
+      expect(html.match(/<script\b/g)).toHaveLength(2);
+      expect(html.match(/<\/script>/g)).toHaveLength(2);
+    });
+
+    it('embeds finding data as inert JSON that round-trips exactly', () => {
+      const evidence = `${payload} &   line-sep   para-sep`;
+      const f = makeFinding({ evidence });
+      const html = buildHtmlReport(makeScanResult({ allFindings: [f] }));
+      const m = html.match(/<script type="application\/json" id="hound-data">([\s\S]*?)<\/script>/);
+      expect(m).not.toBeNull();
+      const data = JSON.parse(m![1]) as ScanResult;
+      expect(data.allFindings[0].evidence).toBe(evidence);
+    });
+
+    it('escapes config-derived values rendered by the template', () => {
+      const html = buildHtmlReport(makeScanResult({
+        threshold: '<img src=x onerror=alert(1)>' as unknown as number,
+        scoreLabel: '<b>x</b>' as unknown as ScanResult['scoreLabel'],
+      }));
+      expect(html).not.toContain('<img src=x');
+      expect(html).not.toContain('<b>x</b>');
+      expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;');
+    });
+
+    it('ships a CSP whose script hash matches the only executable script', () => {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const crypto = require('crypto') as typeof import('crypto');
+      const html = buildHtmlReport(makeScanResult());
+      const csp = html.match(/<meta http-equiv="Content-Security-Policy" content="([^"]+)">/);
+      expect(csp).not.toBeNull();
+      expect(csp![1]).toContain("default-src 'none'");
+      const script = html.match(/<script>([\s\S]*?)<\/script>/)![1];
+      const hash = crypto.createHash('sha256').update(script, 'utf8').digest('base64');
+      expect(csp![1]).toContain(`script-src 'sha256-${hash}'`);
+      expect(csp![1]).not.toContain('unsafe-inline\'; script');
+    });
   });
 });
 
@@ -517,5 +571,68 @@ describe('MITRE formatter integration', () => {
     const result = makeScanResult({ allFindings: [noMitre], files: [{ file: 'src/api.ts', findings: [noMitre], fileScore: 0 }] });
     const xml = buildJunitReport(result);
     expect(xml).not.toContain('MITRE ATT');
+  });
+});
+
+// ── Output escaping (untrusted scanned content) ───────────────────────────────
+
+describe('output escaping', () => {
+  it('CSV neutralises formula injection in any text cell', () => {
+    for (const lead of ['=', '+', '-', '@', '\t', '\r']) {
+      const f = makeFinding({ evidence: `${lead}HYPERLINK("http://evil.example","x")` });
+      const csv = buildCsvReport(makeScanResult({ allFindings: [f] }));
+      const evidenceCell = csv.split('\n').slice(1).join('\n');
+      expect(evidenceCell).toContain(`'${lead}HYPERLINK`);
+    }
+  });
+
+  it('CSV leaves ordinary values and line numbers untouched', () => {
+    const csv = buildCsvReport(makeScanResult());
+    expect(csv.split('\n')[1]).toMatch(/^INJ-001,high,high,src\/api\.ts,42,42,/);
+  });
+
+  it('GitHub annotations cannot inject workflow commands via file names', () => {
+    const f = makeFinding({ file: 'src/a,b:c.ts\n::add-mask::secret' });
+    const out = buildGithubAnnotationsReport(makeScanResult({ allFindings: [f] }));
+    expect(out.split('\n')).toHaveLength(1);
+    expect(out).toContain('file=src/a%2Cb%3Ac.ts%0A%3A%3Aadd-mask%3A%3Asecret,');
+  });
+
+  it('Markdown evidence cannot escape its code span', () => {
+    const evidence = 'x` ![t](https://evil.example/p.png) [fix](https://evil.example) `y';
+    const f = makeFinding({ evidence, file: 'src/`weird`.ts' });
+    const md = buildMarkdownReport(makeScanResult({ allFindings: [f], files: [{ file: f.file, findings: [f], fileScore: 30 }] }));
+    expect(md).toContain('**Evidence:** ``' + evidence + '``');
+    expect(md).toContain('### ``src/`weird`.ts``');
+  });
+
+  it('Markdown escapes titles in HTML summaries and table cells', () => {
+    const f = makeFinding({ title: 'a | b <img src=x onerror=alert(1)>' });
+    const md = buildMarkdownReport(makeScanResult({ allFindings: [f], files: [{ file: f.file, findings: [f], fileScore: 30 }] }));
+    expect(md).not.toContain('<img');
+    expect(md).toContain('a \\| b');
+  });
+
+  it('JUnit output drops characters that are illegal in XML', () => {
+    const f = makeFinding({ evidence: 'a\u0000b\u001bc' });
+    const xml = buildJunitReport(makeScanResult({ allFindings: [f] }));
+    expect(xml).toContain('Evidence: abc');
+  });
+});
+
+describe('sanitize helpers', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { toTerminalSafe, markdownCode } = require('../src/report/sanitize') as typeof import('../src/report/sanitize');
+
+  it('renders terminal escapes, bidi overrides and zero-width chars visibly', () => {
+    expect(toTerminalSafe('ok\u001b]52;c;ZXZpbA==\u0007')).toBe('ok<U+001B>]52;c;ZXZpbA==<U+0007>');
+    expect(toTerminalSafe('a‮b​c')).toBe('a<U+202E>b<U+200B>c');
+    expect(toTerminalSafe('tab\tkept')).toBe('tab\tkept');
+  });
+
+  it('markdownCode picks a fence longer than any backtick run', () => {
+    expect(markdownCode('plain')).toBe('`plain`');
+    expect(markdownCode('a ``b`` c')).toBe('```a ``b`` c```');
+    expect(markdownCode('`edge`')).toBe('`` `edge` ``');
   });
 });

@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "description": "Ground-truth labels for ContextHound FP/FN rate measurement",
   "safe": [
     {
@@ -21,58 +21,169 @@
     {
       "file": "command-runner.ts",
       "description": "Shell command runner using spawn with argument array — no interpolated template strings"
+    },
+    {
+      "file": "README.md",
+      "description": "Project README mentioning API key env vars, passwords, deleting logs and developer mode"
+    },
+    {
+      "file": "CHANGELOG.md",
+      "description": "Changelog that names attack phrases it now defends against"
+    },
+    {
+      "file": "SECURITY.md",
+      "description": "Security policy describing jailbreak patterns the project tests against"
+    },
+    {
+      "file": "news-dataset.txt",
+      "description": "News text with names such as Jordan, Sudan and Dan, and ordinary uses of private/confidential"
+    },
+    {
+      "file": "system-prompt.txt",
+      "description": "System prompt with delimiters that quotes attack phrases in order to refuse them"
+    },
+    {
+      "file": "chat.ts",
+      "description": "Chat completion with a constant system prompt, XML-delimited user input and Zod validation"
+    },
+    {
+      "file": "summarise.py",
+      "description": "Anthropic call with XML-delimited input, Pydantic validation and f-string logging"
+    },
+    {
+      "file": "model_eval.py",
+      "description": "PyTorch model.eval() call, not code execution"
+    },
+    {
+      "file": "parser.ts",
+      "description": "RegExp.exec loop and console.log template, unrelated to any model call"
+    },
+    {
+      "file": "rag-with-delimiters.ts",
+      "description": "RAG with trust filter, source metadata and XML-delimited context in the user role"
+    },
+    {
+      "file": "settings.json",
+      "description": "package.json-style config with a safe system prompt"
+    },
+    {
+      "file": "deploy.yaml",
+      "description": "CI workflow referencing an API key secret by name"
+    },
+    {
+      "file": "guidelines.md",
+      "description": "Style guide with always/never wording and an HTML TODO comment"
+    },
+    {
+      "file": "agent-loop.py",
+      "description": "Agent loop with an iteration cap and a tool allowlist"
     }
   ],
   "unsafe": [
     {
       "file": "inj-001.ts",
       "description": "User input interpolated directly into template string without any delimiter or trust label",
-      "expectFindings": ["INJ-001"]
+      "expectFindings": [
+        "INJ-001"
+      ]
     },
     {
       "file": "inj-003.ts",
       "description": "RAG context variable interpolated into prompt with no untrusted separator",
-      "expectFindings": ["INJ-003"]
+      "expectFindings": [
+        "INJ-003"
+      ]
     },
     {
       "file": "exf-001.ts",
       "description": "API key referenced inside system prompt template string",
-      "expectFindings": ["EXF-001"]
+      "expectFindings": [
+        "EXF-001"
+      ]
     },
     {
       "file": "jbk-001.ts",
       "description": "Known jailbreak phrase embedded in a prompt string",
-      "expectFindings": ["JBK-001"]
+      "expectFindings": [
+        "JBK-001"
+      ]
     },
     {
       "file": "out-001.ts",
       "description": "JSON.parse() called on LLM response variable with no schema validator present",
-      "expectFindings": ["OUT-001"]
+      "expectFindings": [
+        "OUT-001"
+      ]
     },
     {
       "file": "out-002.ts",
       "description": "marked.parse() called on LLM output variable with no DOMPurify sanitizer",
-      "expectFindings": ["OUT-002"]
+      "expectFindings": [
+        "OUT-002"
+      ]
     },
     {
       "file": "tool-001.ts",
       "description": "System prompt grants unbounded tool execution with 'run any command' language",
-      "expectFindings": ["TOOL-001"]
+      "expectFindings": [
+        "TOOL-001"
+      ]
     },
     {
       "file": "cmd-001.ts",
       "description": "Shell command built via execSync with unsanitised template-string variable interpolation",
-      "expectFindings": ["CMD-001"]
+      "expectFindings": [
+        "CMD-001"
+      ]
     },
     {
       "file": "inj-015.ts",
       "description": "Untrusted req.query data aliased into an arbitrarily named variable that flows into a prompt — taint analysis",
-      "expectFindings": ["INJ-015"]
+      "expectFindings": [
+        "INJ-015"
+      ]
     },
     {
       "file": "dos-001.ts",
       "description": "Uncapped completion with an output-inflation prompt (ThinkTrap / reasoning-inflation)",
-      "expectFindings": ["DOS-001"]
+      "expectFindings": [
+        "DOS-001"
+      ]
+    },
+    {
+      "file": "exf-008.ts",
+      "description": "Live API key hardcoded in the client constructor",
+      "expectFindings": [
+        "EXF-008"
+      ]
+    },
+    {
+      "file": "README.md",
+      "description": "README with an instruction to AI agents hidden in an HTML comment",
+      "expectFindings": [
+        "INJ-006"
+      ]
+    },
+    {
+      "file": "support-prompt.txt",
+      "description": "Prompt file that switches the model into the DAN persona",
+      "expectFindings": [
+        "JBK-001"
+      ]
+    },
+    {
+      "file": "rag-001.ts",
+      "description": "Retrieved documents placed in the system role",
+      "expectFindings": [
+        "RAG-001"
+      ]
+    },
+    {
+      "file": "out-004.py",
+      "description": "Model output executed with eval()",
+      "expectFindings": [
+        "OUT-004"
+      ]
     }
   ]
 }

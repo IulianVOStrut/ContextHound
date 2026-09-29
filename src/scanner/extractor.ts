@@ -49,13 +49,23 @@ function tryDecodeBase32(s: string): string | null {
 }
 
 function decodeBase32Sequences(text: string): string {
-  // Match sequences of 8+ base32 characters (case-insensitive, optional padding).
-  // Use lookahead/lookbehind instead of \b so padding '=' chars don't break the boundary.
-  return text.replace(/(?<![A-Z2-7=])[A-Z2-7]{8,}={0,6}(?![A-Z2-7=])/gi, (match) => {
-    const stripped = match.replace(/=/g, '').toUpperCase();
+  // Base32 encoders emit uppercase A-Z and 2-7. Matching case-insensitively
+  // made every 8+ letter word a candidate, and any whose decoding happened to
+  // be printable was replaced: "password" became "x%+:#". Only uppercase runs
+  // are candidates, short ones need padding or a 2-7 digit, and the decoding
+  // must read like text before it replaces the original.
+  return text.replace(/(?<![A-Za-z2-7=])[A-Z2-7]{8,}={0,6}(?![A-Za-z2-7=])/g, (match) => {
+    const stripped = match.replace(/=/g, '');
+    // Short runs need a Base32 signal plain uppercase words lack: padding or a 2-7 digit.
+    if (stripped.length < 16 && !match.includes('=') && !/[2-7]/.test(stripped)) return match;
     const decoded = tryDecodeBase32(stripped);
-    return decoded ?? match;
+    return decoded && looksLikeText(decoded) ? decoded : match;
   });
+}
+
+function looksLikeText(s: string): boolean {
+  const letters = (s.match(/[A-Za-z ]/g) ?? []).length;
+  return letters / s.length >= 0.8 && /[a-z]/i.test(s);
 }
 
 // Maps common homoglyph vowels (Latin extended + combining) to ASCII equivalents.
@@ -105,6 +115,11 @@ export interface ExtractedPrompt {
   lineStart: number;
   lineEnd: number;
   kind: 'raw' | 'template-string' | 'object-field' | 'chat-message' | 'code-block';
+  /**
+   * 'doc' marks general documentation (README, changelog, dataset text) rather
+   * than a prompt file. Only rules flagged `docs: true` run on it.
+   */
+  context?: 'doc';
 }
 
 const PROMPT_KEY_PATTERN = /(?:^|["'])(?:system|prompt|instructions?|messages?|role|content|context|directive)(?:["']|\s*:)/i;
@@ -137,11 +152,33 @@ const COMPLETIONS_PATTERN = /\.chat\.completions\.create\s*\(\s*\{|\.messages\.c
 function isCodeFile(filePath: string): boolean {
   const ext = path.extname(filePath).toLowerCase();
   return [
-    '.ts', '.js', '.tsx', '.jsx',
+    '.ts', '.js', '.tsx', '.jsx', '.mts', '.cts', '.mjs', '.cjs',
     '.py', '.go', '.rs', '.java', '.kt', '.kts',
     '.cs', '.php', '.rb', '.swift', '.vue',
     '.sh', '.bash', '.c', '.cpp', '.cc', '.h', '.hs',
   ].includes(ext);
+}
+
+// Text files that are prompts or agent instructions, as opposed to ordinary
+// documentation. Everything else with a .md/.txt extension is treated as docs.
+const PROMPT_FILE_BASENAMES = new Set([
+  'agents.md', 'claude.md', 'gemini.md', 'copilot-instructions.md', 'skill.md', 'soul.md', 'identity.md',
+  '.cursorrules', '.windsurfrules', '.clinerules', 'llms.txt', 'llms-full.txt',
+]);
+const PROMPT_NAME_PATTERN = /prompt|instruction|system[-_ ]?message|persona/i;
+const PROMPT_DIRS = new Set(['prompts', 'prompt', 'instructions', 'personas', 'skills']);
+// Tool-specific locations for agent rules, commands and prompt files.
+const PROMPT_DIR_PATHS = ['/.cursor/rules/', '/.claude/', '/.github/prompts/', '/.github/instructions/', '/.windsurf/', '/.continue/'];
+
+export function isPromptTextFile(filePath: string): boolean {
+  const norm = '/' + filePath.replace(/\\/g, '/').toLowerCase().replace(/^\/+/, '');
+  const base = path.posix.basename(norm);
+  if (PROMPT_FILE_BASENAMES.has(base)) return true;
+  if (base.endsWith('.prompt') || base.includes('.prompt.') || base.endsWith('.mdc')) return true;
+  if (PROMPT_NAME_PATTERN.test(base)) return true;
+  if (norm.includes('.openclaw') || norm.includes('clawhub')) return true;
+  if (PROMPT_DIR_PATHS.some(d => norm.includes(d))) return true;
+  return path.posix.dirname(norm).split('/').some(d => PROMPT_DIRS.has(d));
 }
 
 function isRawPromptFile(filePath: string): boolean {
@@ -165,6 +202,9 @@ export function extractPrompts(filePath: string, preloaded?: string): ExtractedP
 
   if (isRawPromptFile(filePath)) {
     results = extractFromRaw(content);
+    if (!isPromptTextFile(filePath) && path.extname(filePath).toLowerCase() !== '.prompt') {
+      results = results.map(p => ({ ...p, context: 'doc' as const }));
+    }
     // OpenClaw skill files: also emit the full file as code-block so multi-line
     // SKL rules (SKL-004 whole-file frontmatter checks, etc.) fire correctly.
     const base = path.basename(filePath).toLowerCase();
@@ -270,6 +310,17 @@ function extractFromCode(content: string, _filePath: string): ExtractedPrompt[] 
       if (templateLines.length > 200) {
         inTemplateLiteral = false;
         templateLines = [];
+      }
+    }
+
+    // Complete template literals on a single line. Only multi-line ones were
+    // extracted before, so `const p = \`You are a bot. ${input}\`;` was missed.
+    if (!inTemplateLiteral && backtickCount >= 2 && backtickCount % 2 === 0) {
+      for (const m of line.matchAll(/`(?:[^`\\]|\\.)*`/g)) {
+        if (SYSTEM_PHRASE_PATTERN.test(m[0]) || PROMPT_KEY_PATTERN.test(m[0])) {
+          results.push({ text: line, lineStart: i + 1, lineEnd: i + 1, kind: 'template-string' });
+          break;
+        }
       }
     }
 

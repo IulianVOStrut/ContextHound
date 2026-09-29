@@ -1,5 +1,6 @@
 import path from 'path';
 import type { Rule, RuleMatch } from './types.js';
+import { maskSecrets } from './exfiltration.js';
 import type { ExtractedPrompt } from '../scanner/extractor.js';
 
 /**
@@ -58,7 +59,7 @@ export const skillsRules: Rule[] = [
       const results: RuleMatch[] = [];
       const lines = prompt.text.split('\n');
       const REMOTE_LOAD_PATTERN =
-        /(?:fetch|download|load|import|curl|wget|get)\s+(?:(?:the\s+)?skill|skills|SKILL\.md)\s+from\s+(?:https?:\/\/|github\.com|raw\.github|clawhub)|https?:\/\/[^\s]+SKILL\.md|extraDirs['":\s]+https?:\/\//i;
+        /(?:fetch|download|load|import|curl|wget|get)\s+(?:(?:the\s+)?skill|skills|SKILL\.md)\s+from\s+(?:https?:\/\/|github\.com|raw\.github|clawhub)|https?:\/\/[^\s]{1,500}?SKILL\.md|extraDirs['":\s]+https?:\/\//i;
       lines.forEach((line, i) => {
         if (REMOTE_LOAD_PATTERN.test(line)) {
           results.push({
@@ -213,7 +214,7 @@ export const skillsRules: Rule[] = [
         if (!inFrontmatter || frontmatterClosed) return;
         if (YAML_CRED_KEY_PATTERN.test(line) && YAML_CRED_VALUE_PATTERN.test(line)) {
           results.push({
-            evidence: line.trim(),
+            evidence: maskSecrets(line.trim()),
             lineStart: prompt.lineStart + i,
             lineEnd: prompt.lineStart + i,
           });

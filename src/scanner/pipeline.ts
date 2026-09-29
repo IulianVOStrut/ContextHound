@@ -10,7 +10,10 @@ import { loadCache, saveCache, getCachedFindings, setCacheEntry, computeCacheSig
 import type { HoundCache } from './cache.js';
 import { parseSuppressions, applySuppressions } from './suppressions.js';
 import { getChangedFiles } from './gitDiff.js';
-import type { UnusedSuppression } from '../types.js';
+import { createPathMapper } from './paths.js';
+import { assignFingerprints } from './fingerprint.js';
+import type { UnusedSuppression, SkippedFile } from '../types.js';
+import { DEFAULT_MAX_FILE_SIZE } from '../config/defaults.js';
 
 async function loadHoundIgnore(cwd: string): Promise<string[]> {
   const p = path.join(cwd, '.houndignore');
@@ -53,7 +56,6 @@ async function loadPluginRules(plugins: string[], cwd: string): Promise<Rule[]> 
       ? pluginPath
       : path.join(cwd, pluginPath);
     try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const mod = require(resolved) as Rule | Rule[] | { default: Rule | Rule[] };
       const exported = 'default' in mod ? (mod as { default: Rule | Rule[] }).default : mod;
       if (Array.isArray(exported)) {
@@ -81,7 +83,9 @@ export async function runScan(
     config = { ...config, exclude: [...config.exclude, ...houndIgnorePatterns] };
   }
 
-  let files = await discoverFiles(cwd, config);
+  const discovered = await discoverFiles(cwd, config);
+  let files = discovered;
+  const paths = createPathMapper(cwd);
 
   // --diff mode: restrict to files changed vs. a git ref (fast PR gate).
   if (config.diff) {
@@ -117,6 +121,8 @@ export async function runScan(
   let totalFindings = 0;
   let totalSuppressed = 0;
   const unusedSuppressions: UnusedSuppression[] = [];
+  const skippedFiles: SkippedFile[] = [];
+  const maxFileSize = config.maxFileSize ?? DEFAULT_MAX_FILE_SIZE;
   let aborted = false;
 
   const tasks = files.map(file =>
@@ -128,6 +134,13 @@ export async function runScan(
       // cached; only the file read is repeated.
       let content: string;
       try {
+        if (maxFileSize > 0) {
+          const size = fs.statSync(file).size;
+          if (size > maxFileSize) {
+            skippedFiles.push({ file: paths.toReport(file), size, reason: 'max-file-size' });
+            return;
+          }
+        }
         content = fs.readFileSync(file, 'utf8');
       } catch {
         return;
@@ -148,7 +161,7 @@ export async function runScan(
       if (config.reportUnusedSuppressions) {
         for (const d of directives) {
           if (!d.used) {
-            unusedSuppressions.push({ file, line: d.declaredLine, ruleIds: d.ruleIds, reason: d.reason });
+            unusedSuppressions.push({ file: paths.toReport(file), line: d.declaredLine, ruleIds: d.ruleIds, reason: d.reason });
           }
         }
       }
@@ -156,14 +169,19 @@ export async function runScan(
       if (kept.length === 0) return;
       if (aborted) return; // recheck after CPU work
 
+      // Report copies with portable paths and fingerprints. Cached findings are
+      // left untouched (they stay keyed to absolute paths).
+      const reportFile = paths.toReport(file);
+      const reported = assignFingerprints(kept.map(f => ({ ...f, file: reportFile })));
+
       if (onFinding) {
-        for (const f of kept) onFinding(f);
+        for (const f of reported) onFinding(f);
       }
 
-      const fileScore = scoreFile(kept);
-      fileResults.push({ file, findings: kept, fileScore });
+      const fileScore = scoreFile(reported);
+      fileResults.push({ file: reportFile, findings: reported, fileScore });
 
-      totalFindings += kept.length;
+      totalFindings += reported.length;
       if (config.maxFindings && totalFindings >= config.maxFindings) {
         aborted = true;
       }
@@ -173,13 +191,18 @@ export async function runScan(
   await Promise.all(tasks);
 
   // Persist updated cache
-  if (useCache) saveCache(cwd, cache);
+  // Prune against every in-scope file, not just the --diff subset scanned now.
+  if (useCache) saveCache(cwd, cache, discovered);
 
   // Sort by file path for deterministic, diffable output
   fileResults.sort((a, b) => a.file.localeCompare(b.file));
 
   const result = buildScanResult(fileResults, config);
   if (totalSuppressed > 0) result.suppressedCount = totalSuppressed;
+  if (skippedFiles.length > 0) {
+    skippedFiles.sort((a, b) => a.file.localeCompare(b.file));
+    result.skippedFiles = skippedFiles;
+  }
   if (config.reportUnusedSuppressions) {
     unusedSuppressions.sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line);
     result.unusedSuppressions = unusedSuppressions;

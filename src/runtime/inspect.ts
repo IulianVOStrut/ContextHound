@@ -1,5 +1,5 @@
 import type { ExtractedPrompt } from '../scanner/extractor.js';
-import { analyzePrompt, scoreLabel } from '../scoring/index.js';
+import { analyzePrompt, combineRisk, scoreLabel } from '../scoring/index.js';
 import type { Rule } from '../rules/index.js';
 import type { AuditConfig, Confidence } from '../types.js';
 import type {
@@ -9,6 +9,13 @@ import type {
   GuardPolicy,
   InspectResult,
 } from './types.js';
+
+/**
+ * Rules the guard runs on live messages by default: jailbreak phrases,
+ * encoding and steganography, system-prompt extraction, secret values and
+ * hidden comment instructions. Code rules would flag ordinary chat text.
+ */
+export const RUNTIME_DEFAULT_RULES = ['JBK-*', 'ENC-*', 'EXF-002', 'EXF-007', 'EXF-008', 'INJ-006'];
 
 /** Flatten ContentPart[] or a plain string into a single text string. */
 function extractText(content: string | ContentPart[]): string {
@@ -42,7 +49,8 @@ export function runInspect(
 ): Omit<InspectResult, 'blocked' | 'durationMs'> {
   const config: Pick<AuditConfig, 'excludeRules' | 'includeRules' | 'minConfidence'> = {
     excludeRules: policy?.excludeRules,
-    includeRules: policy?.includeRules,
+    // Custom rules passed to the guard always run alongside the defaults.
+    includeRules: policy?.includeRules ?? [...RUNTIME_DEFAULT_RULES, ...(extraRules ?? []).map(r => r.id)],
     minConfidence: policy?.minConfidence as Confidence | undefined,
   };
 
@@ -80,8 +88,10 @@ export function runInspect(
     }
   }
 
-  const rawScore = allFindings.reduce((sum, f) => sum + f.riskPoints, 0);
-  const score = Math.min(100, rawScore);
+  // Each rule counts once, at its highest points, as in file scoring.
+  const perRule = new Map<string, number>();
+  for (const f of allFindings) perRule.set(f.id, Math.max(perRule.get(f.id) ?? 0, f.riskPoints));
+  const score = combineRisk([...perRule.values()]);
 
   return { findings: allFindings, score, scoreLabel: scoreLabel(score) };
 }

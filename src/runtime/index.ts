@@ -2,6 +2,7 @@ import { runInspect, evaluateBlocked } from './inspect.js';
 import { HoundBlockedError } from './types.js';
 import type { RuntimeMessage, InspectResult, GuardConfig } from './types.js';
 export { HoundBlockedError } from './types.js';
+export { RUNTIME_DEFAULT_RULES } from './inspect.js';
 export type {
   RuntimeMessage,
   ContentPart,

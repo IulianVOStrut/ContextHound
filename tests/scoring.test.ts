@@ -35,13 +35,24 @@ describe('scoreLabel', () => {
 });
 
 describe('scoreFile', () => {
-  it('sums riskPoints across findings', () => {
+  it('combines different rules probabilistically', () => {
     const findings = [
-      makeFinding('high', 'high', 30),
-      makeFinding('medium', 'medium', 11),
-      makeFinding('low', 'low', 3),
+      { ...makeFinding('high', 'high', 30), id: 'A-001' },
+      { ...makeFinding('medium', 'medium', 11), id: 'B-001' },
+      { ...makeFinding('low', 'low', 3), id: 'C-001' },
     ];
-    expect(scoreFile(findings)).toBe(44);
+    // 100 x (1 - 0.70 x 0.89 x 0.97) = 39.6
+    expect(scoreFile(findings)).toBe(40);
+  });
+
+  it('counts a repeated rule once, at its highest points', () => {
+    const repeats = Array.from({ length: 50 }, () => makeFinding('high', 'medium', 23));
+    expect(scoreFile(repeats)).toBe(23);
+  });
+
+  it('two critical findings no longer saturate the score', () => {
+    const two = [{ ...makeFinding('critical', 'high', 50), id: 'A-001' }, { ...makeFinding('critical', 'high', 50), id: 'B-001' }];
+    expect(scoreFile(two)).toBe(75);
   });
 
   it('returns 0 for empty findings', () => {
@@ -84,13 +95,40 @@ describe('buildScanResult', () => {
     expect(result.passed).toBe(false);
   });
 
-  it('caps score at 100', () => {
-    const fileResults: FileResult[] = Array.from({ length: 5 }, (_, i) => ({
-      file: `file${i}.ts`,
-      findings: [makeFinding('critical', 'high', 50)],
-      fileScore: 50,
+  it('weights files worst first with halving, so repo size does not saturate the score', () => {
+    const files = (n: number, score: number): FileResult[] => Array.from({ length: n }, (_, i) => ({
+      file: `file${i}.ts`, findings: [makeFinding('critical', 'high', score)], fileScore: score,
     }));
-    const result = buildScanResult(fileResults, config);
-    expect(result.repoScore).toBe(100);
+    // 50, 25, 12.5, 6.25, 3.125 combined
+    expect(buildScanResult(files(5, 50), config).repoScore).toBe(70);
+    // Twenty files with one medium finding each stay low
+    expect(buildScanResult(files(20, 11), config).repoScore).toBe(20);
+    expect(buildScanResult(files(200, 100), config).repoScore).toBeLessThanOrEqual(100);
+  });
+});
+
+describe('buildScanResult failures', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { buildScanResult } = require('../src/scoring/index') as typeof import('../src/scoring/index');
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { DEFAULT_CONFIG } = require('../src/config/defaults') as typeof import('../src/config/defaults');
+  const crit = { id: 'JBK-001', title: 't', severity: 'critical' as const, confidence: 'high' as const, evidence: 'e',
+    file: 'a.prompt', lineStart: 1, lineEnd: 1, remediation: '-', riskPoints: 50 };
+  const files = [{ file: 'a.prompt', findings: [crit], fileScore: 50 }];
+
+  it('has no failures when every gate passes', () => {
+    const r = buildScanResult(files, { ...DEFAULT_CONFIG, threshold: 60 });
+    expect(r.passed).toBe(true);
+    expect(r.failures).toBeUndefined();
+  });
+
+  it('records each failed gate with a readable reason', () => {
+    const r = buildScanResult(files, { ...DEFAULT_CONFIG, threshold: 40, failOn: 'high', failFileThreshold: 45 });
+    expect(r.passed).toBe(false);
+    expect(r.failures).toEqual([
+      { kind: 'threshold', message: 'repo score 50 is at or above the threshold of 40' },
+      { kind: 'fail-on', message: '1 finding(s) at high severity or above (fail-on: high)' },
+      { kind: 'file-threshold', message: '1 file(s) at or above the file threshold of 45 (highest: a.prompt with 50)' },
+    ]);
   });
 });

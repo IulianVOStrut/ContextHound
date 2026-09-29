@@ -7,8 +7,72 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic V
 
 ## [Unreleased]
 
+---
+
+## [2.1.0] - 2026-09-29
+
+First npm release since 1.8.0: it also carries everything listed under 2.0.0,
+which was never published. Upgrading from 1.8.0 picks up both. Review the
+breaking changes below before upgrading CI pipelines.
+
+Precision work: measured on a new benign corpus of 19 realistic files, the
+file-level false-positive rate drops from 52.6% to 0% with 15/15 detection,
+and MetaGPT on default settings goes from 192 findings (score 100) to 17.
+
+### Breaking
+
+- **Risk scores are combined instead of summed.** Each rule counts once per file and
+  rules combine as `100 x (1 - product of (1 - p/100))`; files are weighted
+  worst first with halving. Scores are lower for the same findings, so
+  revisit custom `threshold` values; `--fail-on` is the recommended CI gate.
+- **Invalid configuration is an error.** Unknown options, wrong types,
+  out-of-range values, invalid JSON, a missing `--config` / `HOUND_CONFIG`
+  path and invalid `HOUND_*` values or CLI flags now exit with code 1 instead
+  of being silently ignored. Keys starting with `_` remain allowed for comments.
+- **Report paths are relative.** Findings, SARIF, annotations and every other
+  format use POSIX paths relative to the git repository root (or the scan
+  directory outside git) instead of absolute paths.
+- **Node.js 20.19 or later** is required (chokidar 5 is ESM-only).
+- **Package entry point.** `require('context-hound')` returns the library API
+  instead of running the CLI, and the `exports` map limits imports to
+  `context-hound`, `context-hound/runtime`, `context-hound/schema.json` and
+  `context-hound/package.json`.
+
 ### Added
 
+- **Prompt files vs documentation.** Markdown and text files are classified.
+  Prompt files (prompt-named files and folders, agent instruction files such
+  as `AGENTS.md`, `CLAUDE.md`, `.cursorrules`, `*.mdc`, `.github/prompts`,
+  `SKILL.md`) get every rule; other docs only get rules marked `docs: true`
+  (hidden Unicode, secret values, instructions hidden in HTML comments).
+  Plugin rules keep running on docs unless they set `docs: false`.
+- **`EXF-008`**: hardcoded secret values (OpenAI, Anthropic, AWS, GitHub,
+  Slack, Google, GitLab, Hugging Face tokens, PEM private keys and
+  high-entropy literals assigned to secret-named keys), placeholders ignored,
+  evidence masked. Also runs on documentation.
+- **`hound-disable-file [RULE...]`** suppresses findings throughout a file.
+- **`RUNTIME_DEFAULT_RULES`**: the runtime guard runs a message-content rule
+  set by default (JBK, ENC, EXF-002, EXF-007, EXF-008, INJ-006).
+- **Benchmark** grows to 19 safe and 15 unsafe realistic fixtures.
+- **Library API** (`src/index.ts`): scanner, config loader, rules, baseline
+  helpers and all formatters, with TypeScript types and no import side
+  effects.
+- **Config JSON Schema** at `schema/contexthoundrc.schema.json`, generated from
+  the same spec as the validator and referenced by `$schema` in `hound init`
+  output. Typos get a "did you mean" suggestion.
+- **Structured failures.** Results and the JSON report include `failures`
+  (threshold, file-threshold, fail-on) and the console prints the actual
+  reason a scan failed.
+- **Finding fingerprints** (rule, path, evidence, occurrence) on every
+  finding and as SARIF `partialFingerprints`.
+- **`maxFileSize` option.** Files over 1 MiB are skipped by default
+  (`--max-file-size <bytes>`, `0` disables). Skipped files are listed on
+  stderr and in the JSON report's `skippedFiles`, so padding a file past the
+  limit never hides it silently.
+- **Release workflow.** Pushing a `vX.Y.Z` tag runs lint, tests and the
+  benchmark, then publishes to npm with provenance after approval in the
+  `npm-publish` environment, creates the GitHub Release and moves the `vN`
+  major tag.
 - **Rule presets.** `--preset <names>` enables a curated rule bundle
   (`owasp-llm-top10`, `injection`, `jailbreak`, `exfiltration`, `agentic`, `mcp`,
   `supply-chain`, `prompt-files`) instead of listing IDs; presets union with
@@ -51,6 +115,36 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic V
 
 ### Security
 
+- **Stored XSS in the HTML report.** A scanned file containing
+  `</script><script>...` executed in the browser of whoever opened the report.
+  Finding data is now embedded as escaped, inert JSON, all template values are
+  escaped, and a Content Security Policy only allows the report's own script by
+  hash.
+- **Formula injection in the CSV report (CWE-1236).** Cells starting with
+  `=`, `+`, `-`, `@`, TAB or CR are prefixed with a quote so spreadsheet apps do
+  not evaluate them.
+- **Output injection in other formats.** Markdown evidence and file paths can
+  no longer break out of their code spans to inject images or links into PR
+  summaries; GitHub annotation values are escaped so a crafted file name cannot
+  emit extra workflow commands; console output shows control characters, bidi
+  overrides and zero-width characters as visible `<U+XXXX>` markers; JUnit drops
+  characters that are illegal in XML.
+- **Denial of service from scanned content.** Fuzzing every rule found
+  quadratic or worse regexes in INJ-001, INJ-003, INJ-006 (cubic: 67s for 40 KB),
+  INJ-010, EXF-004, RAG-007, SKL-002, PST-002, PST-003 and PST-007; all now run
+  in linear time. Scanning MetaGPT drops from 62.8s to 2.4s with identical
+  findings. A regression suite (`tests/redos.test.ts`) guards against new ones.
+- **Scan crash from crafted identifiers.** INJ-001 and INJ-007 built regular
+  expressions from variable names in scanned code, so `${foo(}` aborted the
+  whole scan. Names are now validated and escaped, and a rule that throws
+  (built-in or plugin) is skipped with a warning instead of stopping the scan.
+- **`--baseline` disabled severity gating.** With a baseline, `--fail-on` and
+  `--fail-file-threshold` were ignored, so a new critical finding passed CI.
+  Baseline results now go through the same scoring and gating as a normal scan.
+- **GitHub Action hardening.** Inputs are passed through `env` and validated
+  instead of being interpolated into the shell script, the exact
+  `context-hound` version is installed with `--ignore-scripts`, and third-party
+  actions are pinned by commit SHA.
 - Resolved all 11 Dependabot advisories (1 critical, high, moderate, low). The
   only advisory affecting a runtime dependency was a `picomatch` ReDoS / glob
   method-injection issue reaching production through `fast-glob` → `micromatch`;
@@ -63,6 +157,20 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic V
 
 ### Changed
 
+- **`EXF-001`** is high/medium instead of critical/high and only covers
+  credentials mentioned in prompt prose; secret values are `EXF-008`.
+- **Prompt-text rules no longer scan whole source files**: EXF-001, EXF-003,
+  INJ-002, INJ-004, RAG-004, TOOL-002 and TOOL-003.
+- **Runtime guard** uses `RUNTIME_DEFAULT_RULES` unless `policy.includeRules`
+  is set, and its score is combined per rule.
+- **GitHub Action moved to the repository root** (`action.yml`), so
+  `uses: IulianVOStrut/ContextHound@v2` works. It no longer runs `npm ci` on
+  the caller's repository or calls `npx hound` (which resolves an unrelated npm
+  package). New inputs `version`, `dir`, `min-confidence`, `upload-sarif` and
+  `node-version`; new outputs `score`, `findings`, `passed` and `sarif-file`.
+  `threshold` now defaults to the config file instead of always forcing 60.
+- **`INJ-006` only matches verbs inside a single HTML comment.** The old
+  pattern could run past the first `-->` and match text outside the comment.
 - **`DOS-001` retuned for precision.** It previously fired on *every* completion
   call without a token cap (0% precision in the benchmark — it never matched a
   real issue and flagged 4/5 safe fixtures). It now fires only when a call is
@@ -79,6 +187,58 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic V
   `mitigationReductionFor(mitigation, ruleId)`.
 
 ### Fixed
+
+- **Base32 normaliser corrupted ordinary words**: any 8+ letter word could be
+  "decoded", so "password" reached rules as "x%+:#".
+- **JBK-001** matched "Jordan", "Sudan" and "Dan", "developer mode" and
+  "jailbreak" in any context, and system prompts that quote attacks to refuse
+  them.
+- **EXF-001** flagged `new OpenAI({ apiKey: process.env.X })` as critical;
+  **EXF-003** flagged the TypeScript `private` keyword.
+- **RAG-001** flagged `{ role: 'system', content: SYSTEM_PROMPT }`.
+- **OUT-003 / OUT-004** flagged `model.eval()`, `regex.exec()` and
+  `def eval(`.
+- **RAG-005 / RAG-006** treated `re.search()` as a vector-store query.
+- **INJ-001** flagged logging, comments, error-message f-strings and input
+  already wrapped in `<tag>...</tag>` or `[tag]...[/tag]`.
+- **INJ-006** treated harmless HTML comments such as "TODO: always ..." as
+  hidden instructions; **INJ-016** matched "template" in docstrings.
+- **Findings report the triggering line** instead of line 1 (INJ-002,
+  INJ-003, INJ-004, CMD-002, TOOL-002, TOOL-003).
+- **One-line template literals** such as ``const p = `You are ... ${input}`;``
+  were not extracted at all.
+- **Secret values in evidence**: EXF-007 and SKL-007 now mask the credential
+  so reports and SARIF uploads never carry it.
+- Suppression reasons no longer keep a trailing `-->` or `*/`.
+- **`--watch` never reacted to changes**: chokidar 4+ does not expand globs.
+  Watch mode now watches the directory, filters events through the normal
+  include/exclude rules, handles deletions, honours `--format`, and ignores
+  its own report and cache writes.
+- **`formats` and `"cache": false` in the config file were ignored.**
+- **Default scan scope** now covers every supported language (it skipped
+  `.py`, `.go`, `.tsx` and more unless configured) plus `.mts`, `.cts`, `.mjs`
+  and `.cjs`, which were misread as raw prompt text. `hound init` writes the
+  same defaults. Virtualenv, vendor and build directories and ContextHound's
+  own reports are excluded by default, and `--out` paths are never rescanned.
+- **Baselines** match on fingerprints, so a new instance of a rule in an
+  already-baselined file is reported, and baselines now match across machines.
+  Old baselines still load.
+- **`--format jsonl --baseline` streamed already-known findings.**
+- **Status lines polluted JSONL on stdout**; they go to stderr when stdout
+  carries a machine-readable stream.
+- **`--diff` compared against the ref tip** and picked up files that only
+  changed on the target branch; it now uses the merge base and handles
+  unusual file names.
+- **`diff` and `reportUnusedSuppressions` in the config file** were never read.
+- **Scan cache** prunes entries for files that left the scope, writes compact
+  JSON and checks file size as well as mtime.
+- **Formatters are side-effect free**: the CLI, not the Markdown and
+  annotation builders, appends to the GitHub step summary.
+- **CLI `--version` and the SARIF driver version** are read from
+  `package.json`; they were hard-coded (1.8.0 on npm reports 1.7.0).
+- **`INJ-001` checked the wrong location for delimiters** when a file had two
+  identical lines: its context window now comes from the matched line itself.
+- **Markdown report overwrote the GitHub step summary**; it now appends.
 
 - **`INJ-014` false positive on camelCase identifiers.** Its accessor dot was
   optional, so `content: userContent` matched as `user` + `.content`. The dot
