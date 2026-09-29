@@ -7,6 +7,62 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic V
 
 ## [Unreleased]
 
+### Breaking
+
+- **Invalid configuration is an error.** Unknown options, wrong types,
+  out-of-range values, invalid JSON, a missing `--config` / `HOUND_CONFIG`
+  path and invalid `HOUND_*` values or CLI flags now exit with code 1 instead
+  of being silently ignored. Keys starting with `_` remain allowed for comments.
+- **Report paths are relative.** Findings, SARIF, annotations and every other
+  format use POSIX paths relative to the git repository root (or the scan
+  directory outside git) instead of absolute paths.
+- **Node.js 20.19 or later** is required (chokidar 5 is ESM-only).
+- **Package entry point.** `require('context-hound')` returns the library API
+  instead of running the CLI, and the `exports` map limits imports to
+  `context-hound`, `context-hound/runtime`, `context-hound/schema.json` and
+  `context-hound/package.json`.
+
+### Added
+
+- **Library API** (`src/index.ts`): scanner, config loader, rules, baseline
+  helpers and all formatters, with TypeScript types and no import side
+  effects.
+- **Config JSON Schema** at `schema/contexthoundrc.schema.json`, generated from
+  the same spec as the validator and referenced by `$schema` in `hound init`
+  output. Typos get a "did you mean" suggestion.
+- **Structured failures.** Results and the JSON report include `failures`
+  (threshold, file-threshold, fail-on) and the console prints the actual
+  reason a scan failed.
+- **Finding fingerprints** (rule, path, evidence, occurrence) on every
+  finding and as SARIF `partialFingerprints`.
+
+### Fixed
+
+- **`--watch` never reacted to changes**: chokidar 4+ does not expand globs.
+  Watch mode now watches the directory, filters events through the normal
+  include/exclude rules, handles deletions, honours `--format`, and ignores
+  its own report and cache writes.
+- **`formats` and `"cache": false` in the config file were ignored.**
+- **Default scan scope** now covers every supported language (it skipped
+  `.py`, `.go`, `.tsx` and more unless configured) plus `.mts`, `.cts`, `.mjs`
+  and `.cjs`, which were misread as raw prompt text. `hound init` writes the
+  same defaults. Virtualenv, vendor and build directories and ContextHound's
+  own reports are excluded by default, and `--out` paths are never rescanned.
+- **Baselines** match on fingerprints, so a new instance of a rule in an
+  already-baselined file is reported, and baselines now match across machines.
+  Old baselines still load.
+- **`--format jsonl --baseline` streamed already-known findings.**
+- **Status lines polluted JSONL on stdout**; they go to stderr when stdout
+  carries a machine-readable stream.
+- **`--diff` compared against the ref tip** and picked up files that only
+  changed on the target branch; it now uses the merge base and handles
+  unusual file names.
+- **`diff` and `reportUnusedSuppressions` in the config file** were never read.
+- **Scan cache** prunes entries for files that left the scope, writes compact
+  JSON and checks file size as well as mtime.
+- **Formatters are side-effect free**: the CLI, not the Markdown and
+  annotation builders, appends to the GitHub step summary.
+
 ---
 
 ## [2.1.0] - 2026-09-29
