@@ -1,0 +1,4 @@
+# Keep LF everywhere so tests and fixtures behave the same on Windows.
+* text=auto eol=lf
+*.png binary
+*.ico binary
