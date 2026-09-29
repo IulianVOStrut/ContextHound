@@ -9,6 +9,14 @@ updates:
     open-pull-requests-limit: 5
     labels:
       - "dependencies"
+    ignore:
+      # Major @types/node updates follow the engines field and are made by hand.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+      # commander 15 needs Node.js 22.12; it moves with the next major
+      # release, when engines drops Node.js 20.
+      - dependency-name: "commander"
+        update-types: ["version-update:semver-major"]
     groups:
       # Parser and plugin must stay on the same version.
       typescript-eslint:
