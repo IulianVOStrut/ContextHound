@@ -7,9 +7,36 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic V
 
 ## [Unreleased]
 
+---
+
+## [2.1.0] - 2026-09-29
+
+First npm release since 1.8.0: it also carries everything listed under 2.0.0,
+which was never published. Upgrading from 1.8.0 picks up both. Review the
+breaking changes below before upgrading CI pipelines.
+
 Precision work: measured on a new benign corpus of 19 realistic files, the
 file-level false-positive rate drops from 52.6% to 0% with 15/15 detection,
 and MetaGPT on default settings goes from 192 findings (score 100) to 17.
+
+### Breaking
+
+- **Risk scores are combined instead of summed.** Each rule counts once per file and
+  rules combine as `100 x (1 - product of (1 - p/100))`; files are weighted
+  worst first with halving. Scores are lower for the same findings, so
+  revisit custom `threshold` values; `--fail-on` is the recommended CI gate.
+- **Invalid configuration is an error.** Unknown options, wrong types,
+  out-of-range values, invalid JSON, a missing `--config` / `HOUND_CONFIG`
+  path and invalid `HOUND_*` values or CLI flags now exit with code 1 instead
+  of being silently ignored. Keys starting with `_` remain allowed for comments.
+- **Report paths are relative.** Findings, SARIF, annotations and every other
+  format use POSIX paths relative to the git repository root (or the scan
+  directory outside git) instead of absolute paths.
+- **Node.js 20.19 or later** is required (chokidar 5 is ESM-only).
+- **Package entry point.** `require('context-hound')` returns the library API
+  instead of running the CLI, and the `exports` map limits imports to
+  `context-hound`, `context-hound/runtime`, `context-hound/schema.json` and
+  `context-hound/package.json`.
 
 ### Added
 
@@ -27,70 +54,6 @@ and MetaGPT on default settings goes from 192 findings (score 100) to 17.
 - **`RUNTIME_DEFAULT_RULES`**: the runtime guard runs a message-content rule
   set by default (JBK, ENC, EXF-002, EXF-007, EXF-008, INJ-006).
 - **Benchmark** grows to 19 safe and 15 unsafe realistic fixtures.
-
-### Changed
-
-- **Scores combine instead of summing.** Each rule counts once per file and
-  rules combine as `100 x (1 - product of (1 - p/100))`; files are weighted
-  worst first with halving. Scores are lower for the same findings, so
-  revisit custom `threshold` values; `--fail-on` is the recommended CI gate.
-- **`EXF-001`** is high/medium instead of critical/high and only covers
-  credentials mentioned in prompt prose; secret values are `EXF-008`.
-- **Prompt-text rules no longer scan whole source files**: EXF-001, EXF-003,
-  INJ-002, INJ-004, RAG-004, TOOL-002 and TOOL-003.
-- **Runtime guard** uses `RUNTIME_DEFAULT_RULES` unless `policy.includeRules`
-  is set, and its score is combined per rule.
-
-### Fixed
-
-- **Base32 normaliser corrupted ordinary words**: any 8+ letter word could be
-  "decoded", so "password" reached rules as "x%+:#".
-- **JBK-001** matched "Jordan", "Sudan" and "Dan", "developer mode" and
-  "jailbreak" in any context, and system prompts that quote attacks to refuse
-  them.
-- **EXF-001** flagged `new OpenAI({ apiKey: process.env.X })` as critical;
-  **EXF-003** flagged the TypeScript `private` keyword.
-- **RAG-001** flagged `{ role: 'system', content: SYSTEM_PROMPT }`.
-- **OUT-003 / OUT-004** flagged `model.eval()`, `regex.exec()` and
-  `def eval(`.
-- **RAG-005 / RAG-006** treated `re.search()` as a vector-store query.
-- **INJ-001** flagged logging, comments, error-message f-strings and input
-  already wrapped in `<tag>...</tag>` or `[tag]...[/tag]`.
-- **INJ-006** treated harmless HTML comments such as "TODO: always ..." as
-  hidden instructions; **INJ-016** matched "template" in docstrings.
-- **Findings report the triggering line** instead of line 1 (INJ-002,
-  INJ-003, INJ-004, CMD-002, TOOL-002, TOOL-003).
-- **One-line template literals** such as ``const p = `You are ... ${input}`;``
-  were not extracted at all.
-- **Secret values in evidence**: EXF-007 and SKL-007 now mask the credential
-  so reports and SARIF uploads never carry it.
-- Suppression reasons no longer keep a trailing `-->` or `*/`.
-
----
-
-## [2.1.0] - 2026-09-29
-
-First npm release since 1.8.0: it also carries everything listed under 2.0.0,
-which was never published. Upgrading from 1.8.0 picks up both. Review the
-breaking changes below before upgrading CI pipelines.
-
-### Breaking
-
-- **Invalid configuration is an error.** Unknown options, wrong types,
-  out-of-range values, invalid JSON, a missing `--config` / `HOUND_CONFIG`
-  path and invalid `HOUND_*` values or CLI flags now exit with code 1 instead
-  of being silently ignored. Keys starting with `_` remain allowed for comments.
-- **Report paths are relative.** Findings, SARIF, annotations and every other
-  format use POSIX paths relative to the git repository root (or the scan
-  directory outside git) instead of absolute paths.
-- **Node.js 20.19 or later** is required (chokidar 5 is ESM-only).
-- **Package entry point.** `require('context-hound')` returns the library API
-  instead of running the CLI, and the `exports` map limits imports to
-  `context-hound`, `context-hound/runtime`, `context-hound/schema.json` and
-  `context-hound/package.json`.
-
-### Added
-
 - **Library API** (`src/index.ts`): scanner, config loader, rules, baseline
   helpers and all formatters, with TypeScript types and no import side
   effects.
@@ -193,6 +156,12 @@ breaking changes below before upgrading CI pipelines.
 
 ### Changed
 
+- **`EXF-001`** is high/medium instead of critical/high and only covers
+  credentials mentioned in prompt prose; secret values are `EXF-008`.
+- **Prompt-text rules no longer scan whole source files**: EXF-001, EXF-003,
+  INJ-002, INJ-004, RAG-004, TOOL-002 and TOOL-003.
+- **Runtime guard** uses `RUNTIME_DEFAULT_RULES` unless `policy.includeRules`
+  is set, and its score is combined per rule.
 - **GitHub Action moved to the repository root** (`action.yml`), so
   `uses: IulianVOStrut/ContextHound@v2` works. It no longer runs `npm ci` on
   the caller's repository or calls `npx hound` (which resolves an unrelated npm
@@ -218,6 +187,28 @@ breaking changes below before upgrading CI pipelines.
 
 ### Fixed
 
+- **Base32 normaliser corrupted ordinary words**: any 8+ letter word could be
+  "decoded", so "password" reached rules as "x%+:#".
+- **JBK-001** matched "Jordan", "Sudan" and "Dan", "developer mode" and
+  "jailbreak" in any context, and system prompts that quote attacks to refuse
+  them.
+- **EXF-001** flagged `new OpenAI({ apiKey: process.env.X })` as critical;
+  **EXF-003** flagged the TypeScript `private` keyword.
+- **RAG-001** flagged `{ role: 'system', content: SYSTEM_PROMPT }`.
+- **OUT-003 / OUT-004** flagged `model.eval()`, `regex.exec()` and
+  `def eval(`.
+- **RAG-005 / RAG-006** treated `re.search()` as a vector-store query.
+- **INJ-001** flagged logging, comments, error-message f-strings and input
+  already wrapped in `<tag>...</tag>` or `[tag]...[/tag]`.
+- **INJ-006** treated harmless HTML comments such as "TODO: always ..." as
+  hidden instructions; **INJ-016** matched "template" in docstrings.
+- **Findings report the triggering line** instead of line 1 (INJ-002,
+  INJ-003, INJ-004, CMD-002, TOOL-002, TOOL-003).
+- **One-line template literals** such as ``const p = `You are ... ${input}`;``
+  were not extracted at all.
+- **Secret values in evidence**: EXF-007 and SKL-007 now mask the credential
+  so reports and SARIF uploads never carry it.
+- Suppression reasons no longer keep a trailing `-->` or `*/`.
 - **`--watch` never reacted to changes**: chokidar 4+ does not expand globs.
   Watch mode now watches the directory, filters events through the normal
   include/exclude rules, handles deletions, honours `--format`, and ignores
