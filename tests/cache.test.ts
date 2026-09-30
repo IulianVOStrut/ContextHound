@@ -25,6 +25,23 @@ describe('cache signature', () => {
     expect(a).toBe(b);
   });
 
+  it('changes when a rule starts running on documentation', () => {
+    const before = computeCacheSignature([makeRule({ id: 'AAA-001' })], {});
+    const after = computeCacheSignature([makeRule({ id: 'AAA-001', docs: true })], {});
+    expect(after).not.toBe(before);
+  });
+
+  it('changes with the tool version, which covers extraction changes', () => {
+    jest.isolateModules(() => {
+      jest.doMock('../src/version', () => ({ VERSION: '0.0.0-test' }));
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { computeCacheSignature: other } = require('../src/scanner/cache') as typeof import('../src/scanner/cache');
+      const rules = [makeRule()];
+      expect(other(rules, {})).not.toBe(computeCacheSignature(rules, {}));
+    });
+    jest.dontMock('../src/version');
+  });
+
   it('ignores rule registration order', () => {
     const r1 = makeRule({ id: 'AAA-001' });
     const r2 = makeRule({ id: 'BBB-002' });

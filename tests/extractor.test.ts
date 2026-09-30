@@ -2,6 +2,9 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { extractPrompts } from '../src/scanner/extractor';
+import { runScan } from '../src/scanner/pipeline';
+import { computeFixes, applyFixes } from '../src/fix';
+import { DEFAULT_CONFIG } from '../src/config/defaults';
 
 function writeTmp(name: string, content: string): string {
   const filePath = path.join(os.tmpdir(), `hound-extractor-test-${name}`);
@@ -159,5 +162,25 @@ describe('short text files with hidden characters', () => {
 
   it('still skips short plain files', () => {
     expect(extractPrompts('p.prompt', 'hello\n')).toEqual([]);
+  });
+});
+
+describe('short documentation files with hidden characters, end to end', () => {
+  let dir: string;
+  beforeEach(() => { dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hound-hidden-docs-')); });
+  afterEach(() => { fs.rmSync(dir, { recursive: true, force: true }); });
+
+  it('reports zero-width and variation-selector runs in README.md and notes.txt, and hound fix removes them', async () => {
+    fs.writeFileSync(path.join(dir, 'README.md'), 'x\u200B\u200B\u200By\n');
+    fs.writeFileSync(path.join(dir, 'notes.txt'), 'ok\uFE00\uFE01\uFE02\n');
+    const cfg = { ...DEFAULT_CONFIG, include: ['**/*.md', '**/*.txt'], exclude: [], cache: false };
+    const result = await runScan(dir, cfg);
+    const ids = result.allFindings.map(f => `${path.basename(f.file)}:${f.id}`).sort();
+    expect(ids).toEqual(['README.md:ENC-004', 'notes.txt:ENC-005']);
+
+    const fixes = await computeFixes(dir, cfg);
+    applyFixes(fixes);
+    expect(fs.readFileSync(path.join(dir, 'README.md'), 'utf8')).toBe('xy\n');
+    expect(fs.readFileSync(path.join(dir, 'notes.txt'), 'utf8')).toBe('ok\n');
   });
 });

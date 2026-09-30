@@ -130,6 +130,7 @@ export const encodingRules: Rule[] = [
     severity: 'high',
     confidence: 'high',
     category: 'injection',
+    docs: true,
     mitre: 'T1027',
     remediation:
       'Remove all zero-width characters (ZWJ U+200D, ZWNJ U+200C, ZWSP U+200B) from externally sourced content. Sequences of 3 or more consecutive zero-width characters are a strong indicator of binary steganography used to smuggle hidden instructions across multi-modal inputs.',
@@ -156,6 +157,7 @@ export const encodingRules: Rule[] = [
     severity: 'high',
     confidence: 'high',
     category: 'injection',
+    docs: true,
     mitre: 'T1027',
     remediation:
       'Strip Unicode variation selectors (U+FE00–U+FE0F and U+E0100–U+E01EF) from all externally sourced content. Sequences of variation selectors are used to encode arbitrary binary payloads invisibly alongside normal text.',
