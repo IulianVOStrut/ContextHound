@@ -15,9 +15,11 @@ export type FieldSpec =
   | { kind: 'enum'; values: readonly string[]; nullable?: boolean; description: string }
   | { kind: 'string[]'; description: string }
   | { kind: 'enum[]'; values: readonly string[]; description: string }
-  | { kind: 'string|true'; description: string };
+  | { kind: 'string|true'; description: string }
+  | { kind: 'string|string[]'; description: string };
 
 export const CONFIG_FIELDS: Record<string, FieldSpec> = {
+  extends: { kind: 'string|string[]', description: 'Config(s) to build on: "contexthound:recommended", "contexthound:strict", a relative path to a .json file, or a package .json file. Later entries and this file override earlier ones.' },
   include: { kind: 'string[]', description: 'Glob patterns of files to scan.' },
   exclude: { kind: 'string[]', description: 'Glob patterns of files to skip.' },
   threshold: { kind: 'integer', min: 0, max: 100, description: 'Fail (exit 2) when the repo risk score is at or above this value.' },
@@ -100,6 +102,10 @@ export function checkField(spec: FieldSpec, value: unknown): string | null {
     }
     case 'string|true':
       return typeof value === 'string' || value === true ? null : `must be a git ref string or true, got ${describe(value)}`;
+    case 'string|string[]':
+      return typeof value === 'string' || (Array.isArray(value) && value.every(v => typeof v === 'string'))
+        ? null
+        : `must be a string or an array of strings, got ${describe(value)}`;
   }
 }
 
@@ -148,6 +154,7 @@ export function buildJsonSchema(): Record<string, unknown> {
       case 'string[]': properties[key] = { ...base, type: 'array', items: { type: 'string' } }; break;
       case 'enum[]': properties[key] = { ...base, type: 'array', items: { enum: [...spec.values] } }; break;
       case 'string|true': properties[key] = { ...base, oneOf: [{ type: 'string' }, { const: true }] }; break;
+      case 'string|string[]': properties[key] = { ...base, oneOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] }; break;
     }
   }
   return {

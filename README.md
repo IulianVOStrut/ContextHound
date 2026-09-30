@@ -301,6 +301,28 @@ Run `hound init` to scaffold a `.contexthoundrc.json`, or create one manually:
 
 The config file is validated on every run. Unknown options (with a "did you mean" suggestion), wrong types, out-of-range numbers, invalid JSON and a missing `--config` path are all errors (exit code 1) rather than being silently ignored, because an ignored option can quietly disable a CI gate. The `$schema` line gives editors autocomplete and inline validation; keys starting with `_` are allowed for comments.
 
+### Config file locations and `extends`
+
+Without `--config` or `HOUND_CONFIG`, ContextHound uses the first of these it finds in the scan directory: `.contexthoundrc.json`, `.contexthoundrc` (JSON), or a `"contexthound"` section in `package.json`.
+
+`extends` builds on other configs. Entries are applied in order, then the file's own keys; arrays replace rather than merge.
+
+```json
+{
+  "extends": ["contexthound:recommended", "./config/hound-team.json"],
+  "excludeRules": ["DOS-*"]
+}
+```
+
+| Value | Meaning |
+|-------|---------|
+| `contexthound:recommended` | `failOn: "high"`, `minConfidence: "medium"` |
+| `contexthound:strict` | `failOn: "medium"`, `failFileThreshold: 60` |
+| `./path/file.json` | A JSON file, relative to the config that extends it |
+| `@scope/pkg/contexthound.json` | A JSON file inside an installed npm package |
+
+Only JSON configs are supported, on purpose: a JavaScript config would run code from the repository being scanned, which in CI can be an untrusted pull request.
+
 ### Prompt files and documentation
 
 Markdown and text files are split into two groups:

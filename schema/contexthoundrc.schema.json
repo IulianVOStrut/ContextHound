@@ -8,6 +8,20 @@
       "type": "string",
       "description": "URL or path of this JSON Schema."
     },
+    "extends": {
+      "description": "Config(s) to build on: \"contexthound:recommended\", \"contexthound:strict\", a relative path to a .json file, or a package .json file. Later entries and this file override earlier ones.",
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      ]
+    },
     "include": {
       "description": "Glob patterns of files to scan.",
       "type": "array",

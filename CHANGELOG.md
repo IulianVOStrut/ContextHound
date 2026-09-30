@@ -27,6 +27,13 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic V
   (console and JSON), `--verbose` output, SARIF tags and help, JSON/JSONL
   findings, a new `owasp` CSV column, the Markdown details and HTML chips.
 - **`owasp-agentic` preset**, covering every rule mapped to an ASI category.
+- **More config locations and `extends`.** Config is also read from
+  `.contexthoundrc` and from a `"contexthound"` section in `package.json`.
+  `extends` builds on `contexthound:recommended`, `contexthound:strict`,
+  relative JSON files or JSON files in npm packages, with cycle detection
+  and validation of every file in the chain. JavaScript configs are
+  deliberately not supported, since they would run code from the scanned
+  repository.
 
 ### Changed
 
