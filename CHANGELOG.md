@@ -7,6 +7,10 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic V
 
 ## [Unreleased]
 
+---
+
+## [2.2.0] - 2026-09-30
+
 ### Added
 
 - **Files git ignores are skipped by default.** Inside a repository git
@@ -62,8 +66,9 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic V
 
 - **Error and log messages are no longer read as prompts.** A template
   literal passed to an `Error` constructor, `throw` or a logger (for example
-  `` throw new Error(`x must be a .json file`) ``) triggered prompt rules
-  such as INJ-003 and TOOL-003.
+  `` throw new Error(`x must be a .json file`) ``, also when the literal
+  starts on the line after the call) triggered prompt rules such as INJ-003
+  and TOOL-003.
 - **OUT-001 only fires in files that call a model.** `JSON.parse(text)` in
   ordinary code, such as a config loader, was reported as unvalidated LLM
   output.

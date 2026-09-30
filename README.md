@@ -257,7 +257,7 @@ For stricter supply-chain hygiene, pin the Action to a release commit SHA instea
         with:
           node-version: '22'
 
-      - run: npm install -g context-hound@2.1.1
+      - run: npm install -g context-hound@2.2.0
 
       - run: hound scan --format console,sarif,github-annotations --out results
 
@@ -435,7 +435,7 @@ ContextHound ships a [pre-commit](https://pre-commit.com) hook. Add it to your `
 ```yaml
 repos:
   - repo: https://github.com/IulianVOStrut/ContextHound
-    rev: v2.1.1
+    rev: v2.2.0
     hooks:
       - id: contexthound
         # optional — scan only changed files and fail on high-severity findings:
