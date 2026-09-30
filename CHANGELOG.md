@@ -7,6 +7,34 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic V
 
 ## [Unreleased]
 
+### Added
+
+- **Files git ignores are skipped by default.** Inside a repository git
+  decides (nested `.gitignore` files, `.git/info/exclude`, global excludes),
+  so tracked files are still scanned; outside a repository the scan
+  directory's `.gitignore` is used. `--no-gitignore` or `"gitignore": false`
+  scans them too.
+- **CI workflow** running the tests on Node.js 20, 22 and 24 on Linux and
+  Windows, plus lint, the benchmark, a production dependency audit and an
+  `npm pack` dry run.
+- **Richer SARIF.** Every rule is listed with help text, remediation and a
+  `security-severity` score, so GitHub code scanning labels alerts Critical,
+  High, Medium or Low; results carry `ruleIndex`, severity and confidence;
+  skipped files and the suppression count are reported as tool notifications.
+
+### Changed
+
+- **`.houndignore` uses `.gitignore` syntax.** Directory patterns such as
+  `secrets/` now work, patterns without a slash match at any depth and `!`
+  re-includes a file. Existing glob patterns keep working.
+
+### Fixed
+
+- **Windows:** `--diff` matched no files, watch mode ignored newly added
+  files, and scanning a subdirectory lost the repository-relative path
+  prefix. Paths from git, fast-glob and Node are now compared in a
+  normalised form.
+
 ---
 
 ## [2.1.1] - 2026-09-29

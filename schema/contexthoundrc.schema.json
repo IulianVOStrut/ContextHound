@@ -141,6 +141,10 @@
     "reportUnusedSuppressions": {
       "description": "List inline suppression comments that matched no finding.",
       "type": "boolean"
+    },
+    "gitignore": {
+      "description": "Skip files ignored by git (.gitignore, .git/info/exclude). Default true.",
+      "type": "boolean"
     }
   },
   "patternProperties": {

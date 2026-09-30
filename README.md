@@ -144,6 +144,9 @@ hound scan --concurrency 16
 # Disable incremental cache for a clean run
 hound scan --no-cache
 
+# Also scan files that git ignores (skipped by default)
+hound scan --no-gitignore
+
 # Baseline mode — only report findings new since the last saved scan
 hound scan --format json --out baseline          # save a baseline
 hound scan --baseline baseline.json             # compare future scans against it
@@ -291,6 +294,7 @@ Run `hound init` to scaffold a `.contexthoundrc.json`, or create one manually:
 | `failFileThreshold` | unset | Fail (exit code 2) if any single file scores at or above this value |
 | `concurrency` | `8` | Max files processed in parallel |
 | `cache` | `true` | Enable incremental scan cache (`.hound-cache.json`); set `false` or use `--no-cache` to disable |
+| `gitignore` | `true` | Skip files git ignores (nested `.gitignore` files, `.git/info/exclude`, global excludes); tracked files are always scanned. Set `false` or use `--no-gitignore` to scan them |
 | `plugins` | `[]` | Paths to local `.js` rule plugins; each must export a `Rule` or `Rule[]` |
 | `baseline` | unset | Path to a previous JSON report; only findings absent from the baseline are reported |
 
@@ -317,9 +321,11 @@ All key settings can be overridden at runtime without editing the config file:
 | `HOUND_VERBOSE` | `verbose` (truthy: `1`, `true`, `yes`) |
 | `HOUND_CONFIG` | path to config file |
 
-### `.houndignore`
+### `.houndignore` and `.gitignore`
 
-Place a `.houndignore` file in your project root to add exclusion patterns without editing `.contexthoundrc.json`. Follows the same glob syntax; lines starting with `#` are comments.
+Files that git ignores are skipped by default. Inside a repository ContextHound asks git, so nested `.gitignore` files, `.git/info/exclude` and your global excludes all apply, and tracked files are always scanned even if they match an ignore pattern. Outside a repository, the scan directory's own `.gitignore` is used. Pass `--no-gitignore` (or set `"gitignore": false`) to scan ignored files too.
+
+A `.houndignore` file in the scan directory adds exclusions without editing `.contexthoundrc.json`. It uses `.gitignore` syntax: `secrets/` skips a directory, `*.test.ts` matches at any depth, `!keep.test.ts` re-includes a file, and lines starting with `#` are comments. It applies even with `--no-gitignore`.
 
 ### Inline suppressions
 

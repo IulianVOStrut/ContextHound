@@ -32,6 +32,7 @@ interface RcFile {
   plugins?: string[];
   diff?: string | true;
   reportUnusedSuppressions?: boolean;
+  gitignore?: boolean;
 }
 
 function readRcFile(resolvedPath: string, explicit: boolean): RcFile {
@@ -98,6 +99,7 @@ export function loadConfig(configPath?: string, cwd: string = process.cwd()): Au
     plugins: rc.plugins,
     diff: rc.diff === true ? 'origin/main' : rc.diff,
     reportUnusedSuppressions: rc.reportUnusedSuppressions,
+    gitignore: rc.gitignore,
   };
 
   // Apply environment variable overrides (priority: CLI > env > config > default)

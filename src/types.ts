@@ -85,4 +85,6 @@ export interface AuditConfig {
   diff?: string;
   /** When true, report inline suppression directives that matched nothing. */
   reportUnusedSuppressions?: boolean;
+  /** Skip files git ignores (default true). */
+  gitignore?: boolean;
 }

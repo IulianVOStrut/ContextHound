@@ -15,15 +15,6 @@ import { assignFingerprints } from './fingerprint.js';
 import type { UnusedSuppression, SkippedFile } from '../types.js';
 import { DEFAULT_MAX_FILE_SIZE } from '../config/defaults.js';
 
-async function loadHoundIgnore(cwd: string): Promise<string[]> {
-  const p = path.join(cwd, '.houndignore');
-  if (!fs.existsSync(p)) return [];
-  return fs.readFileSync(p, 'utf8')
-    .split('\n')
-    .map(l => l.trim())
-    .filter(l => l && !l.startsWith('#'));
-}
-
 // Inline concurrency limiter — avoids p-limit (ESM-only, incompatible with CommonJS)
 function createLimiter(concurrency: number) {
   let active = 0;
@@ -77,12 +68,6 @@ export async function runScan(
   config: AuditConfig,
   onFinding?: (finding: Finding) => void
 ): Promise<ScanResult> {
-  // Merge .houndignore patterns into exclude list
-  const houndIgnorePatterns = await loadHoundIgnore(cwd);
-  if (houndIgnorePatterns.length > 0) {
-    config = { ...config, exclude: [...config.exclude, ...houndIgnorePatterns] };
-  }
-
   const discovered = await discoverFiles(cwd, config);
   let files = discovered;
   const paths = createPathMapper(cwd);

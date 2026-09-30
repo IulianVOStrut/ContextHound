@@ -37,6 +37,7 @@ export const CONFIG_FIELDS: Record<string, FieldSpec> = {
   plugins: { kind: 'string[]', description: 'Paths to local .js files exporting a Rule or Rule[].' },
   diff: { kind: 'string|true', description: 'Scan only files changed vs. this git ref (true means origin/main).' },
   reportUnusedSuppressions: { kind: 'boolean', description: 'List inline suppression comments that matched no finding.' },
+  gitignore: { kind: 'boolean', description: 'Skip files ignored by git (.gitignore, .git/info/exclude). Default true.' },
 };
 
 function describe(value: unknown): string {

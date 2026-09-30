@@ -154,6 +154,7 @@ program
   .option('--watch', 'Re-scan on file changes')
   .option('--concurrency <n>', 'Max files scanned in parallel (default: 8)')
   .option('--no-cache', 'Disable incremental file cache')
+  .option('--no-gitignore', 'Also scan files that git ignores')
   .option('--baseline <path>', 'Compare against a saved JSON report; only report new findings')
   .option('--min-confidence <level>', 'Minimum confidence level to report: low|medium|high (default: low)')
   .option('--diff [ref]', 'Scan only files changed vs. a git ref (default: origin/main)')
@@ -175,6 +176,7 @@ program
     watch?: boolean;
     concurrency?: string;
     cache?: boolean;
+    gitignore?: boolean;
     baseline?: string;
     minConfidence?: string;
     diff?: string | boolean;
@@ -478,6 +480,7 @@ interface ScanOptions {
   verbose?: boolean;
   concurrency?: string;
   cache?: boolean;
+  gitignore?: boolean;
   baseline?: string;
   minConfidence?: string;
   diff?: string | boolean;
@@ -512,6 +515,7 @@ function buildConfig(opts: ScanOptions, cwd: string): AuditConfig {
     // commander defaults --no-cache options to true, so only an explicit
     // --no-cache (false) may override the config file.
     cache: opts.cache === false ? false : fileConfig.cache,
+    gitignore: opts.gitignore === false ? false : fileConfig.gitignore,
     baseline: opts.baseline ?? fileConfig.baseline,
     minConfidence: opts.minConfidence !== undefined
       ? parseEnumOption('--min-confidence', opts.minConfidence, CONFIDENCE_LEVELS)
