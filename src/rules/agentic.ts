@@ -87,7 +87,7 @@ export const agenticRules: Rule[] = [
   },
   {
     id: 'AGT-004',
-    title: 'Plan injection — user input interpolated into agent planning prompt',
+    title: 'Plan injection: user input interpolated into agent planning prompt',
     severity: 'high',
     confidence: 'medium',
     category: 'agentic',
@@ -147,7 +147,7 @@ export const agenticRules: Rule[] = [
     category: 'agentic',
     mitre: 'T1546',
     remediation:
-      'An agent should never overwrite its own system prompt, instructions, or tools with LLM-generated content. This is a self-modification attack vector — a malicious prompt can permanently alter agent behaviour for all subsequent interactions. Keep agent configuration immutable at runtime.',
+      'An agent should never overwrite its own system prompt, instructions, or tools with LLM-generated content. This is a self-modification attack vector: a malicious prompt can permanently alter agent behaviour for all subsequent interactions. Keep agent configuration immutable at runtime.',
     check(prompt: ExtractedPrompt): RuleMatch[] {
       if (prompt.kind !== 'code-block') return [];
 
@@ -249,7 +249,7 @@ export const agenticRules: Rule[] = [
   },
   {
     id: 'AGT-011',
-    title: 'Agent step error silently swallowed — downstream steps proceed on bad state (ASI08)',
+    title: 'Agent step error silently swallowed: downstream steps proceed on bad state (ASI08)',
     severity: 'high',
     confidence: 'medium',
     category: 'agentic',

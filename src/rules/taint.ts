@@ -5,7 +5,7 @@ import type { ExtractedPrompt } from '../scanner/extractor.js';
 //
 // Complements the name-based INJ rules by following *arbitrarily named*
 // variables from a clearly-untrusted source into a prompt sink. It is
-// deliberately conservative — only unambiguous external sources are treated as
+// deliberately conservative: only unambiguous external sources are treated as
 // tainted, sanitiser wrappers clear taint, and findings the name-based INJ-001
 // rule already covers are skipped to avoid double-reporting.
 
@@ -18,7 +18,7 @@ const TAINT_SOURCE =
 const SANITIZER =
   /\b(?:sanitiz|escape|validate|allowlist|allow_list|encodeURI|encodeURIComponent|parseInt|parseFloat|Number\s*\(|\.safeParse\s*\(|z\s*\.\s*\w+|zod|DOMPurify|striptags|escapeHtml)/i;
 
-// Variable roots already handled by INJ-001's user-input heuristic — skip these
+// Variable roots already handled by INJ-001's user-input heuristic: skip these
 // so taint stays purely additive.
 const USER_VARS_RE =
   /^(?:user[a-z_]*|input|query|message|request|text|prompt|content)$/i;

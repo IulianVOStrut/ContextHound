@@ -143,7 +143,7 @@ export const mcpRules: Rule[] = [
   },
   {
     id: 'MCP-006',
-    title: 'MCP confused deputy — auth token from MCP request forwarded to downstream API without re-validation',
+    title: 'MCP confused deputy: auth token from MCP request forwarded to downstream API without re-validation',
     severity: 'critical',
     confidence: 'medium',
     category: 'mcp',
@@ -169,7 +169,7 @@ export const mcpRules: Rule[] = [
   },
   {
     id: 'MCP-007',
-    title: 'Cross-MCP context poisoning — shared state written from MCP output without integrity check',
+    title: 'Cross-MCP context poisoning: shared state written from MCP output without integrity check',
     severity: 'high',
     confidence: 'medium',
     category: 'mcp',
@@ -204,7 +204,7 @@ export const mcpRules: Rule[] = [
       const text = prompt.text;
       if (!MCP_CONTEXT_PATTERN.test(text)) return [];
 
-      // Detect: new Stdio*Transport({ command: <variable> }) — variable, not a string literal
+      // Detect: new Stdio*Transport({ command: <variable> }) where command is a variable, not a string literal
       const pattern =
         /new\s+Stdio(?:Client|Server)Transport\s*\(\s*\{[^}]*\bcommand\s*:\s*(?!['"`])[a-z_$][a-z0-9_$.[\]]*/i;
       return matchPattern(prompt, pattern);
@@ -240,7 +240,7 @@ export const mcpRules: Rule[] = [
     category: 'mcp',
     mitre: 'T1190',
     remediation:
-      'Validate MCP tool description fields against a content allowlist before registering them. A malicious MCP server can embed prompt injection instructions inside tool descriptions that are then forwarded to an LLM. Description fields must contain only documentation text — never imperative instruction phrases.',
+      'Validate MCP tool description fields against a content allowlist before registering them. A malicious MCP server can embed prompt injection instructions inside tool descriptions that are then forwarded to an LLM. Description fields must contain only documentation text: never imperative instruction phrases.',
     check(prompt: ExtractedPrompt): RuleMatch[] {
       if (prompt.kind !== 'code-block') return [];
       if (!MCP_CONTEXT_PATTERN.test(prompt.text)) return [];

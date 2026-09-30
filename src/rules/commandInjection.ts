@@ -32,7 +32,7 @@ export const commandInjectionRules: Rule[] = [
       const results: RuleMatch[] = [];
       const lines = prompt.text.split('\n');
 
-      // JS/TS patterns — word boundary prevents matching shell_exec, passthru_exec, etc.
+      // JS/TS patterns: word boundary prevents matching shell_exec, passthru_exec, etc.
       const jsExecPattern = /\b(?:execSync|exec|execFile|spawnSync)\s*\(/i;
       const jsTemplateVarPattern = /`[^`]*\$\{[^}]+\}[^`]*`/;
 
@@ -52,7 +52,7 @@ export const commandInjectionRules: Rule[] = [
       const rustFormatPattern = /format!\s*\(/i;
 
       lines.forEach((line, i) => {
-        // JS/TS — Case 1: exec call with template literal variable on the same line.
+        // JS/TS, case 1: exec call with template literal variable on the same line.
         if (jsExecPattern.test(line) && jsTemplateVarPattern.test(line)) {
           results.push({
             evidence: line.trim(),
@@ -62,7 +62,7 @@ export const commandInjectionRules: Rule[] = [
           return;
         }
 
-        // JS/TS — Case 2: assign-then-use pattern (template var assigned, then exec'd).
+        // JS/TS, case 2: assign-then-use pattern (template var assigned, then exec'd).
         if (jsExecPattern.test(line)) {
           const lookback = lines.slice(Math.max(0, i - 5), i).join('\n');
           const assignMatch = /(?:const|let|var)\s+(\w+)\s*=\s*`[^`]*\$\{[^}]+\}/g;
@@ -81,7 +81,7 @@ export const commandInjectionRules: Rule[] = [
           return;
         }
 
-        // Python — subprocess/os with f-string variable argument
+        // Python: subprocess/os with f-string variable argument
         if (pyExecPattern.test(line) && pyFstringVarPattern.test(line)) {
           results.push({
             evidence: line.trim(),
@@ -91,7 +91,7 @@ export const commandInjectionRules: Rule[] = [
           return;
         }
 
-        // PHP — exec-family function called with a variable argument
+        // PHP: exec-family function called with a variable argument
         if (phpExecWithVarPattern.test(line)) {
           results.push({
             evidence: line.trim(),
@@ -101,7 +101,7 @@ export const commandInjectionRules: Rule[] = [
           return;
         }
 
-        // Go — exec.Command used with fmt.Sprintf on the same line
+        // Go: exec.Command used with fmt.Sprintf on the same line
         if (goExecPattern.test(line) && goFmtPattern.test(line)) {
           results.push({
             evidence: line.trim(),
@@ -111,7 +111,7 @@ export const commandInjectionRules: Rule[] = [
           return;
         }
 
-        // Rust — Command::new used with format! on the same line
+        // Rust: Command::new used with format! on the same line
         if (rustCmdPattern.test(line) && rustFormatPattern.test(line)) {
           results.push({
             evidence: line.trim(),
@@ -126,7 +126,7 @@ export const commandInjectionRules: Rule[] = [
   },
   {
     id: 'CMD-002',
-    title: 'Incomplete command substitution filtering — backtick bypass possible',
+    title: 'Incomplete command substitution filtering: backtick bypass possible',
     severity: 'high',
     confidence: 'high',
     category: 'injection',
@@ -312,7 +312,7 @@ export const commandInjectionRules: Rule[] = [
   },
   {
     id: 'CMD-007',
-    title: 'Named pipe reverse shell — mkfifo piped to shell or netcat',
+    title: 'Named pipe reverse shell: mkfifo piped to shell or netcat',
     severity: 'critical',
     confidence: 'high',
     category: 'injection',

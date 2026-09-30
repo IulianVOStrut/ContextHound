@@ -225,7 +225,7 @@ export const exfiltrationRules: Rule[] = [
     category: 'exfiltration',
     mitre: 'T1552',
     remediation:
-      'Remove all secret values from prompts. A "never reveal" instruction does not protect embedded secrets — the model still processes and may expose the value. Store secrets server-side and reference them by purpose, not value.',
+      'Remove all secret values from prompts. A "never reveal" instruction does not protect embedded secrets: the model still processes and may expose the value. Store secrets server-side and reference them by purpose, not value.',
     docs: true,
     check(prompt: ExtractedPrompt): RuleMatch[] {
       const text = prompt.text;

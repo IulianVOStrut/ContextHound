@@ -34,7 +34,7 @@ export interface GuardPolicy {
   high?: GuardAction;
   medium?: GuardAction;
   low?: GuardAction;
-  /** Block if the aggregate score meets or exceeds this value (0–100). */
+  /** Block if the aggregate score meets or exceeds this value (0 to 100). */
   blockThreshold?: number;
   /** Skip findings below this confidence level. */
   minConfidence?: Confidence;

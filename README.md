@@ -46,7 +46,7 @@ ContextHound brings static analysis to your prompt layer:
 - Flags **agentic risks**: unbounded agent loops, unvalidated memory writes, plan injection, and tool parameters receiving system-prompt content
 - Rewards **good security practice**: mitigations in your prompts reduce your score
 
-It fits into your existing workflow as a CLI command, an `npm` script, or a GitHub Action, with zero external dependencies.
+It fits into your existing workflow as a CLI command, an `npm` script, a pre-commit hook or a GitHub Action. It makes no network calls and has four small runtime dependencies.
 
 ---
 
@@ -54,38 +54,40 @@ It fits into your existing workflow as a CLI command, an `npm` script, or a GitH
 
 | | |
 |---|---|
-| **95 security rules** | Across 14 categories: injection, exfiltration, jailbreak, unsafe tool use, command injection, RAG poisoning, encoding, output handling, multimodal, skills marketplace, agentic, MCP, supply chain, DoS |
+| **122 security rules** | Across 15 families: injection, exfiltration, jailbreak, unsafe tool use, command injection, RAG poisoning, encoding and hidden content, output handling, multimodal, agent skills, agentic, MCP, supply chain, resource consumption, persistence |
 | **OWASP mapping** | Every rule carries OWASP Top 10 for LLM Applications (2025) and Agentic Applications (2026) IDs, shown in `hound explain`, `--verbose`, SARIF tags and all reports |
 | **Numeric risk score (0-100)** | Normalized repo-level score with low, medium, high and critical thresholds |
 | **Mitigation detection** | Explicit safety language in your prompts reduces your score |
-| **7 output formats** | Console, JSON, SARIF, GitHub Annotations, Markdown, JSONL streaming, and interactive HTML |
-| **GitHub Action included** | Fails CI on high risk and uploads SARIF results automatically |
-| **Multi-language scanning** | Detects LLM API usage in Python, Go, Rust, Java, C#, PHP, Ruby, Swift, Kotlin, Vue, Bash — not just TypeScript/JavaScript |
+| **9 output formats** | Console, JSON, SARIF, GitHub Annotations, Markdown, JSONL streaming, interactive HTML, CSV and JUnit XML |
+| **GitHub Action included** | Fails CI on risky changes, uploads SARIF to Code Scanning and can keep a summary comment on the pull request |
+| **Autofix** | `hound fix` previews and removes hidden Unicode characters (ENC-002 to ENC-005) |
+| **Multi-language scanning** | Detects LLM API usage in Python, Go, Rust, Java, C#, PHP, Ruby, Swift, Kotlin, Vue and Bash, not just TypeScript and JavaScript |
 | **Rule filtering** | `excludeRules`/`includeRules` with prefix-glob syntax (`CMD-*`); `minConfidence` filter |
 | **Incremental cache** | `.hound-cache.json` skips unchanged files on re-runs; `--no-cache` to disable |
+| **Respects `.gitignore`** | Files git ignores are skipped; `.houndignore` adds exclusions in the same syntax |
 | **Plugin system** | Load custom rules from local `.js` files via `"plugins": ["./my-rule.js"]` in config |
-| **Baseline / diff mode** | `--baseline results.json` — only report and fail on findings not present in a prior scan |
+| **Baseline / diff mode** | `--baseline results.json` reports and fails only on findings absent from a prior scan; `--diff` scans only changed files |
 | **Watch mode** | `--watch` re-scans on file changes and shows delta findings |
 | **Parallel scanning** | Concurrent file processing (`--concurrency <n>`, default 8) |
-| **Fully offline** | No API calls, no telemetry, no paid dependencies |
+| **Fully offline** | No API calls and no telemetry |
 
 ---
 
 ## Installation
 
-**Global install** — adds the `hound` command to your PATH:
+**Global install** adds the `hound` command to your PATH:
 
 ```bash
 npm install -g context-hound
 ```
 
-**Per-project install** — scoped to one repo, runs via `npx hound` or an npm script:
+**Per-project install** is scoped to one repo and runs via `npx hound` or an npm script:
 
 ```bash
 npm install --save-dev context-hound
 ```
 
-**Zero-install** — no install needed, uses the cached npm registry copy:
+**Without installing**, `npx` fetches and runs the package:
 
 ```bash
 npx context-hound scan --dir .
@@ -130,7 +132,7 @@ hound scan --list-rules
 hound explain INJ-001
 hound explain PST --format json
 
-# Fast PR gate — scan only files changed vs. origin/main
+# Fast PR gate: scan only files changed vs. origin/main
 hound scan --diff
 
 # Interactive HTML report (self-contained, open in browser)
@@ -152,7 +154,7 @@ hound scan --no-gitignore
 hound fix
 hound fix --write
 
-# Baseline mode — only report findings new since the last saved scan
+# Baseline mode: only report findings new since the last saved scan
 hound scan --format json --out baseline          # save a baseline
 hound scan --baseline baseline.json             # compare future scans against it
 
@@ -173,10 +175,10 @@ hound scan --max-file-size 5242880
 
 | Code | Meaning |
 |------|---------|
-| `0` | Passed — score below threshold, no `failOn` violation |
+| `0` | Passed: score below threshold and no `failOn` violation |
 | `1` | Unhandled error or bad arguments |
-| `2` | Threshold breached — repo score ≥ threshold, or file threshold exceeded |
-| `3` | `--fail-on` violation — finding of the specified severity found |
+| `2` | Threshold breached: repo score at or above the threshold, or a file over `failFileThreshold` |
+| `3` | `--fail-on` violation: a finding at or above that severity |
 
 ---
 
@@ -198,7 +200,7 @@ jobs:
       security-events: write   # SARIF upload to Code Scanning
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: IulianVOStrut/ContextHound@v2
         with:
@@ -251,9 +253,9 @@ For stricter supply-chain hygiene, pin the Action to a release commit SHA instea
 
 ```yaml
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
 
@@ -378,7 +380,7 @@ A `.houndignore` file in the scan directory adds exclusions without editing `.co
 
 ### Inline suppressions
 
-Silence a known false positive directly in the source — no need to disable a rule repo-wide. Directives are recognised in **any** file type (the surrounding comment syntax doesn't matter):
+Silence a known false positive directly in the source instead of disabling a rule for the whole repository. Directives are recognised in **any** file type (the surrounding comment syntax doesn't matter):
 
 ```ts
 // hound-disable-next-line INJ-001 -- userInput is a validated enum
@@ -392,9 +394,9 @@ context.push(doc.metadata.author);
 // hound-enable RAG-007
 ```
 
-- `hound-disable-line [RULE...]` — suppress findings on the same line
-- `hound-disable-next-line [RULE...]` — suppress findings on the following line
-- `hound-disable [RULE...]` … `hound-enable [RULE...]` — suppress a block (auto-closed at end of file)
+- `hound-disable-line [RULE...]`: suppress findings on the same line
+- `hound-disable-next-line [RULE...]`: suppress findings on the following line
+- `hound-disable [RULE...]` … `hound-enable [RULE...]`: suppress a block (auto-closed at end of file)
 - `hound-disable-file [RULE...]` anywhere in a file: suppress findings throughout that file (for example a collection of attack samples)
 - Omit rule IDs to suppress **all** rules at that location; list one or more (space/comma separated) to scope it
 - Text after `--` is a free-form justification, surfaced in reports
@@ -438,7 +440,7 @@ repos:
     rev: v2.2.1
     hooks:
       - id: contexthound
-        # optional — scan only changed files and fail on high-severity findings:
+        # optional: scan only changed files and fail on high-severity findings:
         # args: ["--diff", "HEAD", "--fail-on", "high"]
 ```
 
@@ -557,208 +559,266 @@ If your prompts include explicit safety language (input delimiters, refusal-to-r
 
 ## Rules
 
-### A. Injection (INJ)
+<!-- rules:start -->
+<!-- Generated from the rule registry by `npm run docs`. Do not edit by hand. -->
 
-| ID | Severity | Description |
-|----|----------|-------------|
-| INJ-001 | High | Direct user input concatenated into prompt without delimiter |
-| INJ-002 | Medium | Missing "treat user content as data" boundary language |
-| INJ-003 | High | RAG/retrieved context included without untrusted separator |
-| INJ-004 | High | Tool-use instructions overridable by user content |
-| INJ-005 | High | Serialised user object (`JSON.stringify`) interpolated directly into a prompt template |
-| INJ-006 | Medium | HTML comment containing hidden instruction verbs in user-controlled content |
-| INJ-007 | Medium | User input wrapped in code-fence delimiters without stripping backticks first |
-| INJ-008 | High | HTTP request data (`req.body`, `req.query`, `req.params`) interpolated into `role: "system"` template string |
-| INJ-009 | Critical | HTTP request body parsed as the messages array directly — attacker controls role and content |
-| INJ-010 | High | Plaintext role-label transcript (`User:`, `Assistant:`, `system:`) built with untrusted input concatenation |
-| INJ-011 | High | Browser DOM or URL source (`window.location`, `document.cookie`, `getElementById`) fed directly into LLM call |
-| INJ-012 | High | Conversation history spread into messages array without sanitisation |
-| INJ-013 | High | Tool/function call result inserted into messages without sanitisation |
-| INJ-014 | High | LLM completion piped as user-role content into a subsequent LLM call |
-| INJ-015 | High | Untrusted external input (HTTP/CLI/DOM) flows into a prompt — name-agnostic **taint analysis**, follows aliases, honours sanitisers |
+122 rules in 15 families. Run `hound explain <RULE-ID>` for the full remediation, or `hound scan --list-rules` for the list in your terminal.
 
-### B. Exfiltration (EXF)
+### Injection (INJ)
 
-| ID | Severity | Description |
-|----|----------|-------------|
-| EXF-001 | Critical | Prompt references secrets, API keys, or credentials |
-| EXF-002 | Critical | Prompt instructs model to reveal system prompt or hidden instructions |
-| EXF-003 | High | Prompt indicates access to confidential or private data |
-| EXF-004 | High | Prompt includes internal URLs or infrastructure hostnames |
-| EXF-005 | High | Sensitive variable (token, password, key) encoded as Base64 in output |
-| EXF-006 | High | Full prompt or message array logged via `console.log` / `logger.*` without redaction |
-| EXF-007 | Critical | Actual secret value embedded in prompt alongside a "never reveal" instruction |
-| EXF-008 | Critical | Hardcoded secret value (provider API keys, tokens, private keys, high-entropy credentials) in a prompt, source file or documentation; evidence is masked |
+| ID | Severity | Rule | OWASP |
+|----|----------|------|-------|
+| INJ-001 | High | Direct user input concatenation without delimiter | LLM01 |
+| INJ-002 | Medium | Missing "treat user content as data" boundary language | LLM01 |
+| INJ-003 | High | RAG context included without untrusted separator | LLM01 |
+| INJ-004 | High | Tool/function instructions overridable by user content | LLM01, ASI01 |
+| INJ-005 | High | Serialised user object interpolated into prompt | LLM01 |
+| INJ-006 | Medium | HTML comment with hidden instructions in user-controlled content | LLM01 |
+| INJ-007 | Medium | User input wrapped in code-fence delimiters without sanitizing the delimiter | LLM01 |
+| INJ-008 | High | HTTP request data interpolated into system-role message template | LLM01 |
+| INJ-009 | Critical | HTTP request body parsed as messages array (role injection) | LLM01 |
+| INJ-010 | High | Plaintext role-label transcript built with untrusted input | LLM01 |
+| INJ-011 | High | Browser DOM or URL source fed directly into LLM call | LLM01 |
+| INJ-012 | High | Conversation history spread into messages array without sanitisation | LLM01, ASI06 |
+| INJ-013 | High | Tool or function call result inserted into messages without sanitisation | LLM01, ASI01 |
+| INJ-014 | High | LLM completion piped as user-role content into a subsequent LLM call | LLM01, ASI01, ASI07 |
+| INJ-015 | High | Untrusted external input flows into a prompt (taint analysis) | LLM01 |
+| INJ-016 | Critical | Template engine renders user-controlled string as template source | LLM01, LLM05 |
 
-### C. Jailbreak (JBK)
+### Exfiltration (EXF)
 
-| ID | Severity | Description |
-|----|----------|-------------|
-| JBK-001 | Critical | Known jailbreak phrase detected ("ignore instructions", "DAN", etc.) |
-| JBK-002 | High | Weak safety wording ("always comply", "no matter what") |
-| JBK-003 | High | Role-play escape hatch that undermines safety constraints |
-| JBK-004 | High | Agent instructed to act without confirmation or human review ("proceed automatically", "no confirmation needed") |
-| JBK-005 | High | Evidence-erasure or cover-tracks instruction ("delete logs", "leave no trace") |
-| JBK-006 | High | Policy-legitimacy framing combined with an unsafe action request ("as a penetration tester, escalate privileges") |
-| JBK-007 | High | Model identity spoofing — claims to be a different AI model combined with a safety-bypass directive |
-| JBK-008 | High | Prompt compression attack — instruction to compress or summarise the system prompt |
-| JBK-009 | High | Nested instruction injection — imperative commands wrapped in a "safe/harmless summary/translation" framing |
+| ID | Severity | Rule | OWASP |
+|----|----------|------|-------|
+| EXF-001 | High | Prompt references secrets, API keys, or credentials | LLM02 |
+| EXF-002 | Critical | Prompt instructs model to reveal system prompt or hidden instructions | LLM07 |
+| EXF-003 | High | Prompt indicates access to confidential or private data | LLM02 |
+| EXF-004 | High | Prompt includes internal URLs or infrastructure references | LLM02 |
+| EXF-005 | High | Sensitive variable encoded as Base64 in output | LLM02 |
+| EXF-006 | High | Full prompt or message array logged without redaction | LLM02 |
+| EXF-007 | Critical | Secret value embedded in prompt alongside "never reveal" instruction | LLM02, LLM07 |
+| EXF-008 | Critical | Hardcoded secret value in prompt, code or documentation | LLM02 |
 
-### D. Unsafe Tool Use (TOOL)
+### Jailbreak (JBK)
 
-| ID | Severity | Description |
-|----|----------|-------------|
-| TOOL-001 | Critical | Unbounded tool execution ("run any command", "browse anywhere", backtick shell substitution) |
-| TOOL-002 | Medium | Tool use described with no allowlist or usage policy |
-| TOOL-003 | High | Code execution mentioned without sandboxing constraints |
-| TOOL-004 | Critical | Tool description or schema field sourced from a user-controlled variable |
-| TOOL-005 | Critical | Tool `name` or endpoint `url` sourced from user-controlled input (`req.body`, `req.query`, etc.) |
+| ID | Severity | Rule | OWASP |
+|----|----------|------|-------|
+| JBK-001 | Critical | Known jailbreak phrase detected | LLM01 |
+| JBK-002 | High | Weak safety language that can be overridden | LLM01 |
+| JBK-003 | High | Role-play escape hatch that undermines safety | LLM01 |
+| JBK-004 | High | Agent instructed to act without confirmation or human review | LLM06, ASI09 |
+| JBK-005 | High | Evidence-erasure or cover-tracks instruction in prompt | LLM01, ASI10 |
+| JBK-006 | High | Policy-legitimacy framing combined with unsafe action request | LLM01 |
+| JBK-007 | High | Model identity spoofing combined with safety bypass | LLM01, ASI09 |
+| JBK-008 | High | Prompt compression attack | LLM01 |
+| JBK-009 | High | Nested instruction injection via safe-framing wrapper | LLM01 |
+| JBK-010 | Critical | Meta-command activation keyword detected | LLM01 |
+| JBK-011 | High | Instruction dismissal: prior rules framed as obsolete or superseded | LLM01 |
+| JBK-012 | High | Priority downgrade: system instructions demoted below user input | LLM01 |
+| JBK-013 | High | Training or safety constraint explicitly declared void | LLM01 |
 
-### E. Command Injection (CMD)
+### Unsafe tool use (TOOL)
 
-Detects vulnerable patterns in the code surrounding AI tools, where a successful prompt injection can escalate into full command execution. Informed by real CVEs found in Google's Gemini CLI by Cyera Research Labs (2025).
+| ID | Severity | Rule | OWASP |
+|----|----------|------|-------|
+| TOOL-001 | Critical | Unbounded tool execution (run any command / browse anywhere) | LLM06, ASI02 |
+| TOOL-002 | Medium | No tool allowlist or usage policy defined | LLM06, ASI02 |
+| TOOL-003 | High | Code execution without sandboxing mention | LLM06, ASI05 |
+| TOOL-004 | Critical | Tool description or schema field sourced from user-controlled variable | LLM01, ASI02 |
+| TOOL-005 | Critical | Tool name or endpoint URL sourced from user-controlled input | LLM06, ASI02 |
 
-| ID | Severity | Description |
-|----|----------|-------------|
-| CMD-001 | Critical | Shell command built with unsanitised variable interpolation — JS/TS (`execSync(\`cmd ${var}\``), Python (`subprocess.run(f"cmd {var}")`), PHP (`shell_exec($var)`), Go (`exec.Command` + `fmt.Sprintf`), Rust (`Command::new` + `format!`) |
-| CMD-002 | High | Incomplete command substitution filtering: blocks `$()` but not backticks, or vice versa |
-| CMD-003 | High | File path from `glob.sync` or `readdirSync` used directly in a shell command without sanitisation |
-| CMD-004 | Critical | Python `subprocess.run`/`subprocess.call` invoked with `shell=True` and a variable or f-string command argument |
-| CMD-005 | Critical | PHP `shell_exec`, `system`, `passthru`, `exec`, or `popen` called with a `$variable` argument |
+### Command injection (CMD)
 
-### F. RAG Poisoning (RAG)
+Vulnerable patterns in the code around AI tools, where a successful prompt injection can escalate into command execution. Informed by the CVEs Cyera Research Labs found in Google's Gemini CLI (2025), plus reverse-shell patterns.
 
-Detects architectural mistakes in Retrieval-Augmented Generation pipelines that allow retrieved or ingested content to override system-level instructions.
+| ID | Severity | Rule | OWASP |
+|----|----------|------|-------|
+| CMD-001 | Critical | Shell command constructed with unsanitised variable interpolation | LLM05, ASI05 |
+| CMD-002 | High | Incomplete command substitution filtering: backtick bypass possible | LLM05, ASI05 |
+| CMD-003 | High | File path from glob or directory listing used in shell command | LLM05, ASI05 |
+| CMD-004 | Critical | Python subprocess.run/call with shell=True and user-controlled variable | LLM05, ASI05 |
+| CMD-005 | Critical | PHP shell_exec/system/passthru/exec with user-controlled argument | LLM05, ASI05 |
+| CMD-006 | Critical | Reverse shell via bash /dev/tcp file descriptor redirect | LLM03, ASI05 |
+| CMD-007 | Critical | Named pipe reverse shell: mkfifo piped to shell or netcat | LLM03, ASI05 |
+| CMD-008 | Critical | Netcat/ncat with execute flag spawning an interactive shell | LLM03, ASI05 |
 
-| ID | Severity | Description |
-|----|----------|-------------|
-| RAG-001 | High | Retrieved or external content assigned to `role: "system"` in a messages array |
-| RAG-002 | High | Instruction-like phrases ("system prompt:", "always return", "never redact") detected inside a document ingestion loop |
-| RAG-003 | High | Agent memory store written directly from user-controlled input without validation |
-| RAG-004 | Medium | Prompt instructs model to treat retrieved context as highest priority, overriding developer instructions |
-| RAG-005 | Medium | Provenance-free retrieval — chunks inserted into prompt without source metadata check |
-| RAG-006 | High | No ACL or trust-tier filter applied before retrieval enters the prompt |
+### RAG poisoning (RAG)
 
-### G. Encoding (ENC)
+Architectural mistakes in retrieval-augmented generation pipelines that let retrieved or ingested content override system-level instructions.
 
-Detects encoding-based injection and evasion techniques where Base64 or similar encodings are used to smuggle instructions past string-based filters.
+| ID | Severity | Rule | OWASP |
+|----|----------|------|-------|
+| RAG-001 | High | Retrieved content injected as system-role message | LLM01 |
+| RAG-002 | High | Instruction-like phrases in document ingestion pipeline | LLM01, LLM04 |
+| RAG-003 | High | Agent memory written directly from user-controlled input | LLM04, ASI06 |
+| RAG-004 | Medium | Prompt instructs model to treat retrieved context as highest priority | LLM01, ASI01 |
+| RAG-005 | Medium | Provenance-free retrieval: chunks inserted into prompt without source metadata check | LLM08 |
+| RAG-006 | High | No ACL or trust-tier filter applied before retrieval enters the prompt | LLM08 |
+| RAG-007 | High | Document metadata field interpolated into prompt without sanitisation | LLM01, LLM08 |
 
-| ID | Severity | Description |
-|----|----------|-------------|
-| ENC-001 | Medium | `atob`, `btoa`, or `Buffer.from(x, 'base64')` called on a user-controlled variable near prompt construction |
-| ENC-002 | High | Hidden Unicode control characters (zero-width spaces, bidi overrides) detected near instruction keywords |
+### Encoding and hidden content (ENC)
 
-### H. Output Handling (OUT)
+Encodings and invisible Unicode used to smuggle instructions past string filters and human review. `hound fix` removes the characters flagged by ENC-002 to ENC-005.
 
-Covers the output side of the LLM pipeline — how your application consumes model responses. Unsafe consumption can turn a prompt-injection payload into an application-level exploit.
+| ID | Severity | Rule | OWASP |
+|----|----------|------|-------|
+| ENC-001 | Medium | Base64 encoding of user-controlled variable near prompt construction | LLM01 |
+| ENC-002 | High | Hidden Unicode control characters detected in prompt asset | LLM01 |
+| ENC-003 | Critical | Unicode Tags block characters detected: steganographic injection risk | LLM01 |
+| ENC-004 | High | Consecutive zero-width character sequence: covert encoding detected | LLM01 |
+| ENC-005 | High | Unicode variation selector sequence: invisible payload encoding | LLM01 |
+| ENC-006 | Medium | ROT13 or Caesar cipher applied near LLM context | LLM01 |
 
-| ID | Severity | Description |
-|----|----------|-------------|
-| OUT-001 | Critical | `JSON.parse()` (JS/TS) or `json.loads()` (Python) called on LLM output without schema validation (Zod, AJV, Joi, Pydantic, Marshmallow, etc.) |
-| OUT-002 | Critical | LLM-generated Markdown or HTML rendered without DOMPurify or equivalent sanitizer |
-| OUT-003 | Critical | LLM output used directly as argument to `exec()`, `eval()`, or `db.query()` |
-| OUT-004 | Critical | Python `eval()` or `exec()` called with LLM-generated output as the argument |
+### Output handling (OUT)
 
-### I. Multimodal (VIS)
+How the application consumes model responses. Unsafe consumption turns a prompt-injection payload into an application-level exploit.
 
-Covers trust-boundary violations specific to vision, audio/video, and OCR pipelines. Multimodal inputs are an emerging injection vector: an attacker who controls an image URL, an audio file, or a scanned document can use these rules' patterns to smuggle instructions into the model.
+| ID | Severity | Rule | OWASP |
+|----|----------|------|-------|
+| OUT-001 | Critical | LLM JSON output parsed without schema validation | LLM05 |
+| OUT-002 | Critical | LLM output rendered via Markdown or HTML without sanitization | LLM05, LLM02 |
+| OUT-003 | Critical | LLM output used directly in exec(), eval(), or database query | LLM05, ASI05 |
+| OUT-004 | Critical | Python eval() or exec() called with LLM-generated output | LLM05, ASI05 |
+| OUT-005 | High | LLM output written to shared cache without validation: cache poisoning risk | LLM05, ASI06 |
 
-| ID | Severity | Description |
-|----|----------|-------------|
-| VIS-001 | Critical | User-supplied image URL or base64 data forwarded to a vision API (gpt-4o, Claude 3, Gemini Vision) without domain or MIME validation |
-| VIS-002 | Critical | `fs.readFile`/`readFileSync` called with a user-controlled path in a file that also builds a vision API message — path traversal into multimodal input |
-| VIS-003 | High | Audio/video transcription output (Whisper, AssemblyAI, Deepgram, etc.) fed directly into prompt messages without sanitization — RAG poisoning via audio source |
-| VIS-004 | High | OCR output (Tesseract, Google Vision) interpolated into a `role: "system"` message or system prompt variable |
+### Multimodal (VIS)
 
-### J. Skills Marketplace (SKL) — v1.1
+Trust-boundary violations in vision, audio and OCR pipelines, where an attacker who controls an image, a recording or a scanned document can smuggle instructions into the model.
 
-Targets OpenClaw `SKILL.md` files and any markdown files inside `skills/` directories. Fires on self-authoring attacks, remote skill loading, injected instructions, unsafe command dispatch, sensitive path access, privilege escalation claims, and hardcoded credentials in YAML frontmatter.
+| ID | Severity | Rule | OWASP |
+|----|----------|------|-------|
+| VIS-001 | Critical | User-supplied image URL or base64 passed to vision API without validation | LLM01 |
+| VIS-002 | Critical | User-supplied file path read into vision message (path traversal) | LLM02 |
+| VIS-003 | High | Audio/video transcription output fed into prompt without sanitization | LLM01 |
+| VIS-004 | High | OCR output interpolated into system instructions | LLM01 |
 
-| ID | Severity | Description |
-|----|----------|-------------|
-| SKL-001 | Critical | Skill body instructs agent to write or modify other skill files — self-authoring attack that persists across agent restarts |
-| SKL-002 | Critical | Skill body instructs agent to fetch or load skills from an external URL — allows attacker to change skill behavior after installation |
-| SKL-003 | Critical | Skill body contains prompt injection phrases targeting agent core instructions (`ignore previous instructions`, `you are now unrestricted`, etc.) |
-| SKL-004 | High | Skill frontmatter uses `command-dispatch: tool` with `command-arg-mode: raw` — forwards raw user input to a tool, bypassing model safety reasoning |
-| SKL-005 | High | Skill body references sensitive filesystem paths (`~/.ssh`, `~/.env`, `/etc/passwd`, `../../`) for agent to read and potentially exfiltrate |
-| SKL-006 | High | Skill body claims elevated privileges or instructs agent to override or disable other installed skills |
-| SKL-007 | Critical | Hardcoded credential value (API key, token, password) found in YAML frontmatter — exposed to anyone who receives or installs the skill |
-| SKL-008 | Critical | Heartbeat C2 — skill schedules periodic remote fetch to silently overwrite its own instructions after a clean install |
-| SKL-009 | Critical | Agent identity denial — skill instructs agent to deny being AI, claim to be human, or adopt a deceptive persona |
-| SKL-010 | Critical | Anti-scanner evasion — skill contains text explicitly designed to mislead security auditing tools |
-| SKL-011 | Critical | SOUL.md / IDENTITY.md persistence — skill writes instructions to agent identity files that survive uninstallation |
-| SKL-012 | High | Self-propagating worm — skill instructs agent to spread via SSH or `curl\|bash` to reachable hosts |
-| SKL-013 | High | Autonomous financial transactions — skill executes crypto transactions or holds private keys without per-transaction user confirmation |
+### Agent skills (SKL)
 
-> **Scanning OpenClaw skills:** Run `npx hound scan --dir ./skills` or add `**/skills/**/*.md` and `**/SKILL.md` to your `include` config. ContextHound automatically emits skill files as `code-block` for multi-line rule analysis.
+Targets `SKILL.md` files and Markdown files inside `skills/` directories: self-authoring, remote skill loading, injected instructions, unsafe command dispatch, sensitive paths, privilege claims and hardcoded credentials in frontmatter.
 
-### K. Agentic (AGT) — v1.3 / v1.9
+| ID | Severity | Rule | OWASP |
+|----|----------|------|-------|
+| SKL-001 | Critical | Skill instructs agent to write or modify skill files (self-authoring attack) | LLM06, ASI10 |
+| SKL-002 | Critical | Skill instructs agent to fetch or load skills from an external URL | LLM03, ASI04 |
+| SKL-003 | Critical | Prompt injection in skill body targeting agent core instructions | LLM01, ASI01 |
+| SKL-004 | High | Skill frontmatter uses command-dispatch: tool with raw argument mode | LLM06, ASI05 |
+| SKL-005 | High | Skill body instructs agent to access sensitive filesystem paths | LLM02, LLM06 |
+| SKL-006 | High | Skill claims elevated privileges or instructs agent to bypass other skills | LLM06, ASI03 |
+| SKL-007 | Critical | Hardcoded credential value in YAML frontmatter field | LLM02 |
+| SKL-008 | Critical | Skill implements heartbeat C2: scheduled remote fetch overwrites skill instructions | LLM03, ASI04 |
+| SKL-009 | Critical | Skill instructs agent to deny being an AI or adopt a deceptive human identity | LLM09, ASI09 |
+| SKL-010 | Critical | Skill contains anti-scanner evasion targeting security auditing tools | ASI10 |
+| SKL-011 | Critical | Skill injects instructions into agent identity files (SOUL.md / IDENTITY.md persistence) | ASI06, ASI10 |
+| SKL-012 | High | Skill contains self-propagation instructions: SSH spread or curl-pipe-bash worm pattern | LLM03, ASI10 |
+| SKL-013 | High | Skill instructs agent to execute autonomous financial transactions without user confirmation | LLM06, ASI09 |
 
-Targets risks specific to multi-step agentic systems: unbounded execution loops, unvalidated memory writes, user input leaking into agent planning, inter-agent trust boundary violations, and OWASP Agentic AI Security Issues (ASI) gaps.
+### Agentic (AGT)
 
-| ID | Severity | Description |
-|----|----------|-------------|
-| AGT-001 | Critical | Tool call parameter receives system-prompt content — `tool_call`/`function_call` argument value containing `system:` or `instructions:` field contents |
-| AGT-002 | High | Agent loop with no iteration or timeout guard — no `max_iterations`, `max_steps`, `max_turns`, `timeout`, or `recursion_limit` in agent config or code |
-| AGT-003 | High | Agent memory written from unvalidated LLM output — `memory.save()`, `memory.add()`, or `vectorstore.upsert()` called with a raw model response variable |
-| AGT-004 | High | Plan injection — user input interpolated directly into agent planning, task, or goal prompt without a trust-boundary wrapper |
-| AGT-005 | Critical | Agent trusts claimed identity without cryptographic verification — trust decision based on `agentId`, `sender`, `source`, or `from_agent` field without HMAC, JWT, or shared-secret verification |
-| AGT-006 | High | Raw agent output chained as input to another agent without validation — `.run()`, `.invoke()`, or `.generate()` called with another agent's `.output`/`.content`/`.result` directly as the argument |
-| AGT-007 | Critical | Agent self-modification — agent rewrites its own `system_prompt`, `instructions`, or `tools` list with LLM-generated content at runtime |
-| AGT-008 | Critical | ASI03 — Agent calls `assumeRole`, `grantAccess`, or `setPermissions` with a value derived from LLM output; privilege escalation via prompt injection |
-| AGT-009 | High | ASI04 — Agent loads a tool or plugin at runtime from a variable path or dynamic import, enabling supply chain substitution |
-| AGT-010 | High | ASI07 — Raw agent output forwarded to another agent via `send`/`route`/`dispatch` without HMAC, JWT signing, or schema validation |
-| AGT-011 | High | ASI08 — Agent plan step error caught silently (no rethrow, no error-state flag); downstream steps proceed on bad or incomplete state |
+Risks specific to multi-step agents: unbounded loops, unvalidated memory writes, user input in planning prompts and inter-agent trust boundaries.
 
-### L. MCP Security (MCP) — v1.7 / v1.8
+| ID | Severity | Rule | OWASP |
+|----|----------|------|-------|
+| AGT-001 | Critical | Tool call parameter receives system-prompt content | LLM07, ASI02 |
+| AGT-002 | High | Agent loop with no iteration or timeout guard | LLM10, ASI08 |
+| AGT-003 | High | Agent memory written from unvalidated LLM output | LLM04, ASI06 |
+| AGT-004 | High | Plan injection: user input interpolated into agent planning prompt | LLM01, ASI01 |
+| AGT-005 | Critical | Agent trusts claimed identity without cryptographic verification | ASI03 |
+| AGT-006 | High | Raw agent output chained as input to another agent without validation | ASI07 |
+| AGT-007 | Critical | Agent modifies its own system prompt, instructions, or tool list at runtime | LLM06, ASI10 |
+| AGT-008 | Critical | Agent assumes IAM role or grants permissions based on LLM output (ASI03) | LLM06, ASI03 |
+| AGT-009 | High | Agent loads tool or plugin from variable path or external URL at runtime (ASI04) | LLM03, ASI04 |
+| AGT-010 | High | Raw agent output forwarded to another agent without trust boundary validation (ASI07) | ASI07 |
+| AGT-011 | High | Agent step error silently swallowed: downstream steps proceed on bad state (ASI08) | ASI08 |
 
-Covers trust-boundary and supply-chain risks specific to the Model Context Protocol. MCP introduces a new attack surface: tool descriptions, transport URLs, event payloads, and cross-server shared state can all carry injection or privilege-escalation payloads.
+### Model Context Protocol (MCP)
 
-| ID | Severity | Description |
-|----|----------|-------------|
-| MCP-001 | Critical | MCP tool description injected into LLM prompt without sanitization — raw `tool.description` value used in `role: "system"` or `messages.push()` |
-| MCP-002 | High | MCP tool registered with dynamic name or description — `server.tool()` first argument is a variable or template literal, enabling rug-pull attacks post-approval |
-| MCP-003 | High | MCP sampling/createMessage handler without human approval guard — `setRequestHandler(CreateMessageRequestSchema)` without `requireHumanApproval`, `confirm`, or `approve` check |
-| MCP-004 | Medium | MCP transport URL constructed from variable — `SSEClientTransport` or `WebSocketClientTransport` initialised with a `new URL(variable)` instead of a static string |
-| MCP-005 | High | MCP stdio transport uses `shell: true` — makes the command string shell-interpolated and injectable if any argument is user-controlled |
-| MCP-006 | Critical | MCP confused deputy — auth token from MCP request forwarded to downstream API without re-validation; `Authorization` header value sourced directly from `request.params`, `context`, or `event` |
-| MCP-007 | High | Cross-MCP context poisoning — shared/global context store written from MCP output without hash, signature, or provenance check |
-| MCP-008 | High | MCP stdio transport command loaded from variable path — `StdioClientTransport`/`StdioServerTransport` `command:` field is a variable rather than a static string literal |
-| MCP-009 | High | MCP session ID used as auth decision without expiry check — `sessionId`/`connectionId` equality comparison with no TTL, `expiresAt`, or `isExpired` guard (replay attack) |
-| MCP-010 | Critical | MCP transport event payload injected into LLM context without sanitisation — event/message `.data`, `.content`, or `.payload` used directly in `messages.push()` or a `content:` field |
+Trust-boundary and supply-chain risks in MCP clients and servers: tool descriptions, transport URLs, event payloads and cross-server shared state can all carry injection or privilege-escalation payloads.
+
+| ID | Severity | Rule | OWASP |
+|----|----------|------|-------|
+| MCP-001 | Critical | MCP tool description injected into LLM prompt without sanitization | LLM01, ASI01 |
+| MCP-002 | High | MCP tool registered with dynamic name or description | ASI02 |
+| MCP-003 | High | MCP sampling/createMessage handler without human approval guard | LLM06, ASI09 |
+| MCP-004 | Medium | MCP transport URL constructed from variable | ASI02 |
+| MCP-005 | High | MCP stdio transport uses shell:true | ASI02, ASI05 |
+| MCP-006 | Critical | MCP confused deputy: auth token from MCP request forwarded to downstream API without re-validation | ASI03 |
+| MCP-007 | High | Cross-MCP context poisoning: shared state written from MCP output without integrity check | LLM04, ASI06 |
+| MCP-008 | High | MCP stdio transport command loaded from variable path | LLM03, ASI04 |
+| MCP-009 | High | MCP session ID used as auth decision without expiry check | ASI03 |
+| MCP-010 | Critical | MCP transport event payload injected into LLM context without sanitisation | LLM01, ASI01 |
+| MCP-011 | Critical | MCP tool description contains prompt injection instruction verbs | LLM01, ASI01 |
+| MCP-012 | High | MCP tool name contains prompt control keywords or suspicious characters | LLM01, ASI02 |
+
+### Supply chain (SCH)
+
+Unsafe model deserialisation and tooling that strips model safety training.
+
+| ID | Severity | Rule | OWASP |
+|----|----------|------|-------|
+| SCH-001 | Critical | Unsafe pickle or torch deserialization: arbitrary code execution risk | LLM03, ASI05 |
+| SCH-003 | Critical | LangChain unsafe deserialization without object allowlist (CVE-2025-68664) | LLM03, ASI05 |
+| SCH-004 | Critical | Model safety ablation package in dependency list | LLM03, LLM04 |
+| SCH-005 | Critical | Model refusal removal script detected | LLM03, LLM04 |
+| SCH-006 | Critical | Package manager install of model safety bypass tooling | LLM03, LLM04 |
+
+### Resource consumption (DOS)
+
+| ID | Severity | Rule | OWASP |
+|----|----------|------|-------|
+| DOS-001 | Medium | Unbounded LLM completion: reasoning-inflation / ThinkTrap risk | LLM10 |
+
+### Persistence and concealment (PST)
+
+Host persistence and anti-forensics patterns in agent tooling, skills and scripts.
+
+| ID | Severity | Rule | OWASP |
+|----|----------|------|-------|
+| PST-001 | Critical | Cron job persistence: crontab edit or write to cron path | LLM06, ASI10 |
+| PST-002 | Critical | Systemd service persistence: systemctl enable or write to systemd path | LLM06, ASI10 |
+| PST-003 | High | macOS LaunchDaemon or LaunchAgent persistence | LLM06, ASI10 |
+| PST-004 | High | Shell profile modification: write to .bashrc, .zshrc, or /etc/profile | LLM06, ASI10 |
+| PST-005 | High | Audit evasion: shell history cleared or disabled | ASI10 |
+| PST-006 | High | Log tampering: truncate or shred on /var/log paths | ASI10 |
+| PST-007 | High | Sensitive command output suppressed to /dev/null | ASI10 |
+| PST-008 | Medium | Detached process spawning: nohup, setsid, screen, or tmux backgrounding | LLM06, ASI10 |
+
+<!-- rules:end -->
 
 ---
 
 ## Example Output
 
 ```
-=== ContextHound Prompt Audit ===
+=== ContextHound Scan ===
 
-src/prompts/assistant.ts (file score: 73)
+src/prompts/assistant.ts (file score: 45)
   [HIGH] INJ-001: Direct user input concatenation without delimiter
-    File: src/prompts/assistant.ts:12
-    Evidence: Answer the user's question: ${userInput}
+    File: src/prompts/assistant.ts:7
+    Evidence: Answer the user's question: ${userInput}`;
     Confidence: medium
+    MITRE:      T1190
+    OWASP:      LLM01
     Risk points: 23
-    Remediation: Wrap user input with clear delimiters (e.g., triple backticks)
-                 and label it as "untrusted user content".
+    Remediation: Wrap user input with clear delimiters (e.g., triple backticks) and label it as "untrusted user content".
 
-  [CRITICAL] EXF-001: Prompt references secrets, API keys, or credentials
-    File: src/prompts/assistant.ts:8
+  [HIGH] EXF-001: Prompt references secrets, API keys, or credentials
+    File: src/prompts/assistant.ts:6
     Evidence: The database password is: secret123.
-    Confidence: high
-    Risk points: 50
-    Remediation: Remove all secret values from prompts. Use environment
-                 variables server-side; never embed credentials in prompt text.
+    Confidence: medium
+    MITRE:      T1552
+    OWASP:      LLM02
+    Risk points: 23
+    Remediation: Remove all secret values from prompts. Use environment variables server-side; never embed credentials in prompt text.
 
-────────────────────────────────────────────────────────
-Repo Risk Score: 87/100 (CRITICAL)
+────────────────────────────────────────────────────────────
+Repo Risk Score: 45/100 (MEDIUM)
 Threshold: 60
-Total findings: 5
-By severity: critical: 2  high: 2  medium: 1
+Total findings: 3
+By severity: high: 2  medium: 1
 
-✗ FAILED - score meets or exceeds threshold.
+✓ PASSED: score 45 is below the threshold of 60.
 ```
+
+This is `hound scan --verbose` with one finding left out; without `--verbose` each finding is a single line.
 
 ---
 
@@ -768,15 +828,16 @@ By severity: critical: 2  high: 2  medium: 1
 src/
 ├── cli.ts                  # CLI entry point (Commander.js)
 ├── index.ts                # Library entry point (require('context-hound'))
+├── fix.ts                  # hound fix: safe automatic fixes
 ├── version.ts              # Version read from package.json
 ├── types.ts                # Shared TypeScript types
 ├── config/
 │   ├── defaults.ts         # Default include/exclude globs and settings
-│   ├── loader.ts           # .contexthoundrc.json loader, env var overrides, option parsing
+│   ├── loader.ts           # Config discovery, extends, env var overrides, option parsing
 │   ├── schema.ts           # Config spec: validator and JSON Schema generator
 │   └── presets.ts          # Rule presets (--preset)
 ├── scanner/
-│   ├── discover.ts         # File discovery via fast-glob
+│   ├── discover.ts         # File discovery, .gitignore and .houndignore
 │   ├── extractor.ts        # Prompt extraction (raw, code, structured)
 │   ├── languages.ts        # LLM API trigger patterns per language extension
 │   ├── cache.ts            # Incremental scan cache (.hound-cache.json)
@@ -785,61 +846,24 @@ src/
 │   ├── paths.ts            # Portable, repository-relative report paths
 │   ├── fingerprint.ts      # Stable finding fingerprints
 │   ├── baseline.ts         # Baseline comparison (--baseline)
-│   └── pipeline.ts         # Orchestrates the full scan; parallel + cache + plugins
+│   └── pipeline.ts         # Orchestrates the scan: discovery, cache, rules, plugins
 ├── rules/
 │   ├── types.ts            # Rule interface and scoring helpers
-│   ├── injection.ts        # INJ-* rules
-│   ├── taint.ts            # INJ-015 taint analysis
-│   ├── exfiltration.ts     # EXF-* rules
-│   ├── jailbreak.ts        # JBK-* rules
-│   ├── unsafeTools.ts      # TOOL-* rules
-│   ├── commandInjection.ts # CMD-* rules
-│   ├── rag.ts              # RAG-* rules
-│   ├── encoding.ts         # ENC-* rules
-│   ├── outputHandling.ts   # OUT-* rules
-│   ├── multimodal.ts       # VIS-* rules
-│   ├── skills.ts           # SKL-* rules
-│   ├── agentic.ts          # AGT-* rules
-│   ├── mcp.ts              # MCP-* rules
-│   ├── supplyChain.ts      # SCH-* rules
-│   ├── dos.ts              # DOS-* rules
-│   ├── persistence.ts      # PST-* rules
+│   ├── index.ts            # Rule registry
+│   ├── owasp.ts            # OWASP LLM and Agentic Top 10 mapping
 │   ├── mitigation.ts       # Mitigation presence detection
-│   └── index.ts            # Rule registry
-├── runtime/
-│   ├── index.ts            # createGuard(): runtime message inspection API
-│   ├── inspect.ts          # Core inspection logic for live message arrays
-│   └── types.ts            # RuntimeMessage, InspectResult, GuardConfig types
-├── scoring/
-│   └── index.ts            # Risk score, gates and rule filtering
-└── report/
-    ├── console.ts          # ANSI-coloured terminal output
-    ├── json.ts             # JSON report builder
-    ├── jsonl.ts            # JSONL formatter
-    ├── sarif.ts            # SARIF 2.1.0 report builder
-    ├── githubAnnotations.ts# GitHub Actions annotations and step summary
-    ├── markdown.ts         # Markdown report with findings tables
-    ├── html.ts             # Self-contained interactive HTML report
-    ├── csv.ts              # CSV report
-    ├── junit.ts            # JUnit XML report
-    └── sanitize.ts         # Escaping for untrusted scanned content
-schema/
-└── contexthoundrc.schema.json  # JSON Schema for the config file (npm run schema)
+│   ├── taint.ts            # INJ-015 taint analysis
+│   └── *.ts                # One file per rule family (injection.ts, mcp.ts, persistence.ts, ...)
+├── runtime/                # createGuard(): inspection of live message arrays
+├── scoring/                # Risk score, gates and rule filtering
+└── report/                 # console, json, jsonl, sarif, githubAnnotations, markdown,
+                            # html, csv, junit, prComment and sanitize (escaping)
+schema/                     # JSON Schema for the config file (npm run schema)
+scripts/                    # Benchmark, schema and README generators, Action helpers
+benchmarks/                 # Labelled safe and unsafe corpus (npm run benchmark)
 attacks/                    # Example injection strings (not executed against models)
-tests/
-├── fixtures/               # Sample prompts for testing
-├── rules.test.ts           # Unit tests for all rules
-├── scoring.test.ts         # Unit tests for scoring logic
-├── scanner.test.ts         # Integration tests for the scan pipeline
-├── extractor.test.ts       # Unit tests for prompt extraction
-├── formatters.test.ts      # Unit tests for all report formatters
-├── mitigation.test.ts      # Unit tests for mitigation detection
-└── cli.test.ts             # CLI integration tests (init, list-rules, exit codes)
+tests/                      # Jest suites and fixtures
 action.yml                  # Composite GitHub Action (uses: IulianVOStrut/ContextHound@v2)
-.github/
-└── workflows/
-    ├── context-hound.yml    # CI workflow
-    └── release.yml          # Tag-triggered npm publish with provenance
 ```
 
 ---
@@ -859,7 +883,7 @@ The benchmark scans two fixture directories:
 | `benchmarks/safe/` | 19 realistic benign files: README, changelog and security docs, a news dataset, a system prompt that quotes attacks in order to refuse them, standard chat and RAG code with delimiters, Python logging, PyTorch `model.eval()`, configs. Expect **0** findings |
 | `benchmarks/unsafe/` | 15 files with real vulnerabilities, each labelled with the rule that must fire |
 
-**Results on 2.1.0:**
+**Results on 2.2.1:**
 
 ```
 File-level FP rate:   0.0%   (0 / 19 safe files produced findings)
@@ -872,7 +896,7 @@ The benchmark exits with code 1 if any false positives or false negatives are fo
 
 ### Per-rule precision / recall
 
-The benchmark also prints a **per-rule signal table** (worst F1 first) so low-precision rules are easy to spot — true/false positives, false negatives, precision, recall, and F1 for every labelled rule. FP counts come from the `safe/` fixtures (ground truth: zero findings); TP/FN come from the labelled `unsafe/` fixtures. Pass `--report <path>` to also emit a machine-readable JSON report for dashboards or CI trend tracking:
+The benchmark also prints a **per-rule signal table** (worst F1 first) so low-precision rules are easy to spot: true and false positives, false negatives, precision, recall, and F1 for every labelled rule. FP counts come from the `safe/` fixtures (ground truth: zero findings); TP/FN come from the labelled `unsafe/` fixtures. Pass `--report <path>` to also emit a machine-readable JSON report for dashboards or CI trend tracking:
 
 ```bash
 npm run benchmark -- --report bench-report.json
@@ -882,14 +906,14 @@ npm run benchmark -- --report bench-report.json
 
 ## Browser Extension
 
-The ContextHound browser extension brings real-time prompt injection detection to Chrome and Firefox. It uses the same rule engine as the CLI, compiled and bundled locally — no network requests, no backend.
+The ContextHound browser extension brings real-time prompt injection detection to Chrome and Firefox. It uses the same rule engine as the CLI, compiled and bundled locally, with no network requests and no backend.
 
-> **Status:** Firefox extension is live — [install from Firefox Add-ons](https://addons.mozilla.org/firefox/addon/contexthound/). Chrome submission is awaiting Web Store review. Source available at [github.com/IulianVOStrut/ContextHound-Extensions](https://github.com/IulianVOStrut/ContextHound-Extensions).
+> **Status:** the Firefox extension is live ([install from Firefox Add-ons](https://addons.mozilla.org/firefox/addon/contexthound/)). Chrome submission is awaiting Web Store review. Source available at [github.com/IulianVOStrut/ContextHound-Extensions](https://github.com/IulianVOStrut/ContextHound-Extensions).
 
 ### Features
 
 **Scan pill**
-A lightweight indicator appears next to any AI chat input on any website. As you type, the extension scans the text against 70 detection rules and displays a risk score and findings in a dropdown panel — no page navigation required.
+A lightweight indicator appears next to any AI chat input on any website. As you type, the extension scans the text with the ContextHound rule engine and shows a risk score and findings in a dropdown panel, without leaving the page.
 
 **DevTools panel**
 Open browser DevTools and select the ContextHound tab to monitor live LLM API traffic. The extension intercepts outbound requests to OpenAI, Anthropic, Google Gemini, Mistral, Groq, Cohere, DeepSeek, and other services, scanning both the request body and response for injection content. A toolbar badge reflects the highest risk score seen in the current session.
@@ -923,10 +947,11 @@ The extension collects no user data. All scanning is local. See the [privacy pol
 
 Contributions are welcome. To add a new rule:
 
-1. Add it to the appropriate file in `src/rules/` (or create a new one for a new category)
-2. Register it in `src/rules/index.ts`
-3. Add at least one positive and one negative test case in `tests/rules.test.ts`
-4. Run `npm test` to verify all tests pass
+1. Add it to the appropriate file in `src/rules/` (or create a new one for a new family)
+2. Register it in `src/rules/index.ts` and map it to OWASP categories in `src/rules/owasp.ts`
+3. Add at least one positive and one negative test case in `tests/rules.test.ts`, and a labelled fixture in `benchmarks/unsafe/`
+4. Run `npm run docs` to regenerate the rule tables in this README
+5. Run `npm run lint`, `npm test` and `npm run benchmark`
 
 ---
 

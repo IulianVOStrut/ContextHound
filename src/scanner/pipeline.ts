@@ -15,7 +15,7 @@ import { assignFingerprints } from './fingerprint.js';
 import type { UnusedSuppression, SkippedFile } from '../types.js';
 import { DEFAULT_MAX_FILE_SIZE } from '../config/defaults.js';
 
-// Inline concurrency limiter — avoids p-limit (ESM-only, incompatible with CommonJS)
+// Inline concurrency limiter: avoids p-limit (ESM-only, incompatible with CommonJS)
 function createLimiter(concurrency: number) {
   let active = 0;
   const queue: Array<() => void> = [];
@@ -115,7 +115,7 @@ export async function runScan(
       if (aborted) return;
 
       // One read serves both suppression parsing (always) and, on a cache
-      // miss, prompt extraction. Rule execution — the expensive part — stays
+      // miss, prompt extraction. Rule execution (the expensive part) stays
       // cached; only the file read is repeated.
       let content: string;
       try {

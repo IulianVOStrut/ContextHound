@@ -3,7 +3,7 @@
  *
  * Safe because:
  *   - spawnSync is called with an array of arguments, never an interpolated shell string
- *   - No variable substitution inside a shell command — the shell never sees the variable
+ *   - No variable substitution inside a shell command: the shell never sees the variable
  *   - Arguments are passed as discrete array elements, bypassing shell interpretation
  *
  * Expected findings: NONE
@@ -19,7 +19,7 @@ export function safeListDirectory(inputPath: string): string {
   const result = spawnSync('ls', ['-la', safeName], {
     cwd: '/tmp/sandbox',
     encoding: 'utf8',
-    shell: false, // explicit false — no shell expansion
+    shell: false, // explicit false: no shell expansion
   });
 
   if (result.error) throw result.error;
@@ -34,7 +34,7 @@ export function safeRunScript(scriptName: string): string {
     throw new Error(`Script not in allowlist: ${safe}`);
   }
 
-  // Arguments as array — no shell string interpolation
+  // Arguments as array: no shell string interpolation
   const result = spawnSync('bash', [safe], {
     cwd: '/app/scripts',
     encoding: 'utf8',

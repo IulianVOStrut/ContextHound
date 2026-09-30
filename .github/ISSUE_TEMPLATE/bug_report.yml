@@ -83,4 +83,4 @@ body:
     id: context
     attributes:
       label: Additional context
-      description: Anything else that might be relevant — stack traces, sample files, screenshots.
+      description: Anything else that might be relevant: stack traces, sample files, screenshots.

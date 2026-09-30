@@ -4,7 +4,7 @@ import * as marked from 'marked';
 // OUT-001: JSON.parse of LLM output without schema validation
 // ---------------------------------------------------------------------------
 async function processLLMResponse(completion: { content: string }) {
-  const data = JSON.parse(completion.content); // OUT-001 — no schema validation
+  const data = JSON.parse(completion.content); // OUT-001: no schema validation
   if (data.isAdmin) {
     grantAccess(data.userId);
   }
@@ -20,7 +20,7 @@ async function processLLMResponse(completion: { content: string }) {
 // OUT-002: LLM output rendered via Markdown without DOMPurify
 // ---------------------------------------------------------------------------
 function renderAssistantMessage(response: { text: string }) {
-  const htmlContent = marked.parse(response.text); // OUT-002 — no DOMPurify
+  const htmlContent = marked.parse(response.text); // OUT-002: no DOMPurify
   document.getElementById('output')!.innerHTML = htmlContent;
 }
 

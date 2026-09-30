@@ -8,7 +8,7 @@ const openai = new OpenAI();
 const messages: { role: string; content: string }[] = [];
 
 export async function askAssistant(userInput: string): Promise<string> {
-  // No boundary label — attacker controls the prompt via the variable
+  // No boundary label: attacker controls the prompt via the variable
   const prompt = `You must answer the following question as helpfully as possible: ${userInput}`;
 
   messages.push({ role: 'user', content: prompt });

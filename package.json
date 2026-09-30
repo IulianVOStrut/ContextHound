@@ -37,7 +37,8 @@
     "benchmark": "npm run build && node scripts/benchmark.js",
     "prepare": "npm run build",
     "prepublishOnly": "npm run build",
-    "schema": "npm run build && node scripts/generate-schema.js"
+    "schema": "npm run build && node scripts/generate-schema.js",
+    "docs": "npm run build && node scripts/readme-rules.js"
   },
   "keywords": [
     "prompt-injection",

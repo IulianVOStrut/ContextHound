@@ -19,7 +19,7 @@ function matchPattern(prompt: ExtractedPrompt, pattern: RegExp): RuleMatch[] {
 export const persistenceRules: Rule[] = [
   {
     id: 'PST-001',
-    title: 'Cron job persistence — crontab edit or write to cron path',
+    title: 'Cron job persistence: crontab edit or write to cron path',
     severity: 'critical',
     confidence: 'high',
     category: 'persistence',
@@ -34,7 +34,7 @@ export const persistenceRules: Rule[] = [
   },
   {
     id: 'PST-002',
-    title: 'Systemd service persistence — systemctl enable or write to systemd path',
+    title: 'Systemd service persistence: systemctl enable or write to systemd path',
     severity: 'critical',
     confidence: 'high',
     category: 'persistence',
@@ -64,7 +64,7 @@ export const persistenceRules: Rule[] = [
   },
   {
     id: 'PST-004',
-    title: 'Shell profile modification — write to .bashrc, .zshrc, or /etc/profile',
+    title: 'Shell profile modification: write to .bashrc, .zshrc, or /etc/profile',
     severity: 'high',
     confidence: 'high',
     category: 'persistence',
@@ -79,7 +79,7 @@ export const persistenceRules: Rule[] = [
   },
   {
     id: 'PST-005',
-    title: 'Audit evasion — shell history cleared or disabled',
+    title: 'Audit evasion: shell history cleared or disabled',
     severity: 'high',
     confidence: 'high',
     category: 'persistence',
@@ -94,7 +94,7 @@ export const persistenceRules: Rule[] = [
   },
   {
     id: 'PST-006',
-    title: 'Log tampering — truncate or shred on /var/log paths',
+    title: 'Log tampering: truncate or shred on /var/log paths',
     severity: 'high',
     confidence: 'high',
     category: 'persistence',
@@ -125,7 +125,7 @@ export const persistenceRules: Rule[] = [
   },
   {
     id: 'PST-008',
-    title: 'Detached process spawning — nohup, setsid, screen, or tmux backgrounding',
+    title: 'Detached process spawning: nohup, setsid, screen, or tmux backgrounding',
     severity: 'medium',
     confidence: 'medium',
     category: 'persistence',

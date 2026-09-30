@@ -58,7 +58,7 @@ function renderRows(findings){
         '<div class="meta-chips">'+
           '<span class="chip">Confidence: '+escHtml(f.confidence)+'</span>'+
           '<span class="chip">Risk points: '+escHtml(f.riskPoints)+'</span>'+
-          '<span class="chip">Line '+escHtml(f.lineStart)+(f.lineEnd !== f.lineStart ? '–'+escHtml(f.lineEnd) : '')+'</span>'+
+          '<span class="chip">Line '+escHtml(f.lineStart)+(f.lineEnd !== f.lineStart ? '-'+escHtml(f.lineEnd) : '')+'</span>'+
           (f.mitre ? '<a class="chip" href="https://attack.mitre.org/techniques/'+escHtml(f.mitre.replace('.','/'))+'\" target="_blank" rel="noopener noreferrer" style="color:var(--orange);border-color:#f9731640">MITRE '+escHtml(f.mitre)+'</a>' : '')+
           (f.owasp || []).map(function(o){ return '<span class="chip">OWASP '+escHtml(o)+'</span>'; }).join('')+
         '</div>'+
@@ -144,7 +144,7 @@ export function buildHtmlReport(result: ScanResult): string {
   const medCount   = allFindings.filter(f => f.severity === 'medium').length;
   const lowCount   = allFindings.filter(f => f.severity === 'low').length;
 
-  // SVG gauge — circle ring filled proportionally
+  // SVG gauge: circle ring filled proportionally
   const radius = 52;
   const circ = 2 * Math.PI * radius;
   const dash = circ * (repoScore / 100);

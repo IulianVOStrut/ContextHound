@@ -136,7 +136,7 @@ export const ragRules: Rule[] = [
     confidence: 'medium',
     category: 'injection',
     remediation:
-      'Explicitly state that retrieved context is untrusted data and must not override developer instructions. Retrieved content should inform — not direct — model behavior.',
+      'Explicitly state that retrieved context is untrusted data and must not override developer instructions. Retrieved content should inform, not direct, model behavior.',
     check(prompt: ExtractedPrompt): RuleMatch[] {
       // Prompt-text rule: in code, `context` and `override` are identifiers.
       if (prompt.kind === 'code-block') return [];
@@ -148,7 +148,7 @@ export const ragRules: Rule[] = [
   },
   {
     id: 'RAG-005',
-    title: 'Provenance-free retrieval — chunks inserted into prompt without source metadata check',
+    title: 'Provenance-free retrieval: chunks inserted into prompt without source metadata check',
     severity: 'medium',
     confidence: 'medium',
     category: 'injection',

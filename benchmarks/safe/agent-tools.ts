@@ -5,7 +5,7 @@
  *   - System prompt specifies an explicit allowlist of permitted tools
  *   - Tool policy explicitly states user input cannot change tool behavior
  *   - max_iterations: 10 prevents unbounded agent loops
- *   - System message content is a string literal — not a dynamic variable
+ *   - System message content is a string literal: not a dynamic variable
  *
  * Expected findings: NONE
  */

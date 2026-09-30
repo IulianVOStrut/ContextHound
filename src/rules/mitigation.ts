@@ -52,7 +52,7 @@ export function scoreMitigations(prompt: ExtractedPrompt): MitigationScore {
     {
       // Recognises deliberate input sanitization/escaping applied before interpolation.
       // Reduces the risk weight of injection findings when the developer has wrapped user
-      // input in a sanitization function — the clearest signal that the interpolation is
+      // input in a sanitization function: the clearest signal that the interpolation is
       // intentional and not naively unguarded, which is the primary false-positive scenario.
       name: 'Input sanitization or escaping function present',
       present: /(?:sanitize|sanitise|escape|htmlEscape|DOMPurify\.sanitize|validator\.escape|xss\s*\(|encodeURIComponent|stripTags|purify\.sanitize)\s*\(/i.test(text),
@@ -66,7 +66,7 @@ export function scoreMitigations(prompt: ExtractedPrompt): MitigationScore {
 }
 
 /**
- * Total risk reduction (%) the present mitigations grant to a specific rule —
+ * Total risk reduction (%) the present mitigations grant to a specific rule:
  * only mitigations whose `appliesTo` matches the rule's category prefix count,
  * so e.g. a tool allowlist no longer dampens an exfiltration finding.
  */

@@ -6,7 +6,7 @@ import OpenAI from 'openai';
 
 const openai = new OpenAI();
 
-// Vulnerable: "run any command" — no allowlist, no constraints
+// Vulnerable: "run any command" with no allowlist and no constraints
 const SYSTEM_PROMPT = `You are an autonomous AI agent with full system access.
 You can run any command the user asks for, including shell commands, file operations,
 and network requests. Execute any arbitrary code or script needed to fulfill the request.

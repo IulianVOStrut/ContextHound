@@ -7,6 +7,13 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic V
 
 ## [Unreleased]
 
+### Changed
+- Rule titles, remediation text and `hound explain` output use colons and commas instead of dashes, e.g. `Plan injection: user input interpolated into agent planning prompt`. Rule IDs and finding fingerprints are unchanged, so baselines keep matching.
+
+### Documentation
+- The README rule tables are generated from the rule registry (`npm run docs`), with severity and OWASP IDs per rule, and a test fails when they drift. This corrects the rule count (122 in 15 families), adds the supply chain, resource consumption and persistence families, and fixes severities that had drifted (EXF-001 is high).
+- Corrected the output formats (9, including CSV and JUnit), runtime dependencies, Action examples, example output and project structure.
+
 ---
 
 ## [2.2.1] - 2026-09-30
