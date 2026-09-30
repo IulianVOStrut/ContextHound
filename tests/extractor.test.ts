@@ -147,3 +147,17 @@ describe('error and log messages are not prompts', () => {
     expect(prompts.map(p => p.lineStart)).toEqual([9]);
   });
 });
+
+describe('short text files with hidden characters', () => {
+  it('are extracted even without prompt wording or length', () => {
+    const tag = String.fromCodePoint(0xE0041);
+    for (const content of ['x\u200B\u200B\u200By\n', `Hi${tag}${tag}`, 'a\u202Eb', 'ok\uFE00\uFE01\uFE02']) {
+      expect(extractPrompts('p.prompt', content)).toHaveLength(1);
+      expect(extractPrompts('notes.txt', content)).toHaveLength(1);
+    }
+  });
+
+  it('still skips short plain files', () => {
+    expect(extractPrompts('p.prompt', 'hello\n')).toEqual([]);
+  });
+});
