@@ -1,6 +1,6 @@
 {
   "name": "context-hound",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "description": "Developer-first prompt-injection scanner for CI and local use",
   "main": "dist/index.js",
   "exports": {

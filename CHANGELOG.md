@@ -9,6 +9,25 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic V
 
 ---
 
+## [2.2.1] - 2026-09-30
+
+### Fixed
+
+- **Short text files with hidden characters were not scanned.** A `.prompt`,
+  `.txt` or `.md` file was only checked if it contained instruction-like
+  wording or was longer than 50 characters, so a short file whose content
+  was invisible characters (zero-width characters, bidi controls, tag
+  characters, variation selectors) was skipped by the ENC rules and by
+  `hound fix`. Any file containing such characters is now always scanned.
+- **ENC-004 and ENC-005 now also run on documentation** (README, notes,
+  changelogs), like ENC-002 and ENC-003. Runs of zero-width characters or
+  variation selectors are suspicious in any text.
+- **Upgrading invalidates the scan cache.** The cache signature now includes
+  the ContextHound version and each rule's documentation flag, so files
+  cached as clean by an older version are scanned again.
+
+---
+
 ## [2.2.0] - 2026-09-30
 
 ### Added

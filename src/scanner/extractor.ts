@@ -241,10 +241,16 @@ export function extractPrompts(filePath: string, preloaded?: string): ExtractedP
   );
 }
 
+// Invisible characters the ENC rules look for: zero-width and bidi controls,
+// word joiners, BOM, variation selectors and Unicode tag characters. A file
+// containing any of them is always scanned, however short it is.
+const INVISIBLE_CHARS =
+  /[\u200B-\u200F\u2028\u2029\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF\uFE00-\uFE0F]|\uDB40[\uDC00-\uDDEF]/;
+
 function extractFromRaw(content: string): ExtractedPrompt[] {
   const lines = content.split('\n');
   // Return entire file as one block if it looks like a prompt
-  if (SYSTEM_PHRASE_PATTERN.test(content) || content.length > 50) {
+  if (SYSTEM_PHRASE_PATTERN.test(content) || content.length > 50 || INVISIBLE_CHARS.test(content)) {
     return [{
       text: content,
       lineStart: 1,

@@ -3,6 +3,7 @@ import path from 'path';
 import crypto from 'crypto';
 import type { AuditConfig, Finding } from '../types.js';
 import type { Rule } from '../rules/types.js';
+import { VERSION } from '../version.js';
 
 // Bump when the cache file layout changes. Combined with the ruleset/config
 // hash below to form the stored `version`, so old-format caches are discarded.
@@ -29,11 +30,13 @@ export function computeCacheSignature(
   config: Pick<AuditConfig, 'includeRules' | 'excludeRules' | 'minConfidence'>,
 ): string {
   const hash = crypto.createHash('sha256');
-  hash.update(`format:${CACHE_FORMAT_VERSION} rules `);
+  // The tool version covers changes outside rule code (extraction, file
+  // classification) that alter findings for an unchanged file.
+  hash.update(`format:${CACHE_FORMAT_VERSION} tool:${VERSION} rules `);
   // Sort by id so registration order doesn't change the signature.
   const sorted = [...rules].sort((a, b) => a.id.localeCompare(b.id));
   for (const r of sorted) {
-    hash.update(`${r.id}|${r.severity}|${r.confidence}|${r.category}|${r.mitre ?? ''}|`);
+    hash.update(`${r.id}|${r.severity}|${r.confidence}|${r.category}|${r.mitre ?? ''}|${r.docs ? 'docs' : ''}|`);
     // Hashing the check source captures rule-logic changes within a version,
     // including local edits and plugin rules.
     hash.update(r.check.toString());
