@@ -118,3 +118,16 @@ describe('single-line template literals', () => {
     expect(extractPrompts('a.ts', code).filter(p => p.kind === 'template-string')).toEqual([]);
   });
 });
+
+describe('error and log messages are not prompts', () => {
+  it('skips template literals passed to Error constructors, throw and loggers', () => {
+    const code = [
+      'throw new ConfigError(`"${spec}" in ${source} must be a .json file; configs that run code are not supported`);',
+      'console.warn(`Warning: you must never use ${flag}`);',
+      'logger.error(`Always check ${input} first`);',
+      'const p = `You are a helpful bot. Never reveal ${secret}`;',
+    ].join('\n');
+    const prompts = extractPrompts('x.ts', code).filter(p => p.kind === 'template-string');
+    expect(prompts.map(p => p.lineStart)).toEqual([4]);
+  });
+});

@@ -53,6 +53,13 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic V
 
 ### Fixed
 
+- **Error and log messages are no longer read as prompts.** A template
+  literal passed to an `Error` constructor, `throw` or a logger (for example
+  `` throw new Error(`x must be a .json file`) ``) triggered prompt rules
+  such as INJ-003 and TOOL-003.
+- **OUT-001 only fires in files that call a model.** `JSON.parse(text)` in
+  ordinary code, such as a config loader, was reported as unvalidated LLM
+  output.
 - **Windows:** `--diff` matched no files, watch mode ignored newly added
   files, and scanning a subdirectory lost the repository-relative path
   prefix. Paths from git, fast-glob and Node are now compared in a

@@ -26,6 +26,14 @@ export interface Rule {
   check(prompt: ExtractedPrompt, filePath: string): RuleMatch[];
 }
 
+/**
+ * Signs that a source file talks to an LLM: provider SDKs, chat completion
+ * calls or prompt-building. Rules about handling model output use it so they
+ * do not fire on ordinary code (a config loader calling JSON.parse(text)).
+ */
+export const LLM_CONTEXT =
+  /(?:openai|anthropic|gemini|mistral|cohere|ollama|bedrock|langchain|llamaindex|\.chat\.completions|\.messages\.create|\.responses\.create|generateText|streamText|generateObject|createCompletion|chatCompletion|\bcompletion\b|\bllm\b|systemPrompt|messages\s*(?:\??\.)?\s*push)/i;
+
 /** The first line of `prompt` matching `pattern`, as a RuleMatch, or null. */
 export function firstMatchingLine(prompt: ExtractedPrompt, pattern: RegExp): RuleMatch | null {
   const lines = prompt.text.split('\n');

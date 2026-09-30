@@ -1086,8 +1086,13 @@ describe('OUT-001: Python json.loads without schema validation', () => {
   const rule = outputHandlingRules.find(r => r.id === 'OUT-001')!;
 
   it('flags json.loads(response.content) without a schema validator', () => {
-    const prompt = makePrompt('data = json.loads(response.content)', 1, 'code-block');
+    const prompt = makePrompt('response = client.chat.completions.create(model=m, messages=msgs)\ndata = json.loads(response.content)', 1, 'code-block');
     expect(rule.check(prompt, 'test.py')).toHaveLength(1);
+  });
+
+  it('does not flag JSON parsing in files that never call a model', () => {
+    const prompt = makePrompt('const text = fs.readFileSync(file, "utf8");\nreturn JSON.parse(text);', 1, 'code-block');
+    expect(rule.check(prompt, 'loader.ts')).toHaveLength(0);
   });
 
   it('does not flag when pydantic is present in the file', () => {

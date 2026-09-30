@@ -124,6 +124,10 @@ export interface ExtractedPrompt {
 
 const PROMPT_KEY_PATTERN = /(?:^|["'])(?:system|prompt|instructions?|messages?|role|content|context|directive)(?:["']|\s*:)/i;
 const ROLE_CONTENT_PATTERN = /\{\s*["']?role["']?\s*:\s*["'][^"']+["']\s*,\s*["']?content["']?\s*:/i;
+// A template literal that is an error or log message is not a prompt, even if
+// it says "must" or "never" (for example `throw new Error(\`x must be...\`)`).
+const MESSAGE_SINK_PREFIX =
+  /(?:\bnew\s+\w*(?:Error|Exception)\s*\(|\bthrow\s+|\bconsole\s*\.\s*(?:log|info|warn|error|debug|trace)\s*\(|\b(?:logger|log)\s*\.\s*(?:info|warn|warning|error|debug|trace|fatal)\s*\()\s*$/;
 const SYSTEM_PHRASE_PATTERN = /(?:you are|your (role|task|job|purpose) is|do not|don't|never|always|must|system:|instructions?:|you must|as an? (ai|assistant|bot))/i;
 // Patterns that trigger full-file code-block extraction so multi-line rules can
 // analyse the complete context (CMD, RAG, and encoding rules rely on this).
@@ -294,7 +298,9 @@ function extractFromCode(content: string, _filePath: string): ExtractedPrompt[] 
       // Closing backtick
       templateLines.push(line);
       const text = templateLines.join('\n');
-      if (SYSTEM_PHRASE_PATTERN.test(text) || PROMPT_KEY_PATTERN.test(text)) {
+      const opener = templateLines[0];
+      const isMessage = MESSAGE_SINK_PREFIX.test(opener.slice(0, opener.indexOf('`')));
+      if (!isMessage && (SYSTEM_PHRASE_PATTERN.test(text) || PROMPT_KEY_PATTERN.test(text))) {
         results.push({
           text,
           lineStart: templateStart + 1,
@@ -317,6 +323,7 @@ function extractFromCode(content: string, _filePath: string): ExtractedPrompt[] 
     // extracted before, so `const p = \`You are a bot. ${input}\`;` was missed.
     if (!inTemplateLiteral && backtickCount >= 2 && backtickCount % 2 === 0) {
       for (const m of line.matchAll(/`(?:[^`\\]|\\.)*`/g)) {
+        if (MESSAGE_SINK_PREFIX.test(line.slice(0, m.index))) continue;
         if (SYSTEM_PHRASE_PATTERN.test(m[0]) || PROMPT_KEY_PATTERN.test(m[0])) {
           results.push({ text: line, lineStart: i + 1, lineEnd: i + 1, kind: 'template-string' });
           break;
