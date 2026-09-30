@@ -20,7 +20,7 @@ import { buildJsonlReport } from './report/jsonl.js';
 import { buildCsvReport } from './report/csv.js';
 import { buildJunitReport } from './report/junit.js';
 import { toTerminalSafe } from './report/sanitize.js';
-import { allRules } from './rules/index.js';
+import { allRules, OWASP_CATEGORIES, owaspLabel } from './rules/index.js';
 import { VERSION } from './version.js';
 import { DEFAULT_MAX_FILE_SIZE, DEFAULT_INCLUDE_GLOBS, DEFAULT_EXCLUDE_GLOBS } from './config/defaults.js';
 import type { AuditConfig, OutputFormat, ScanResult } from './types.js';
@@ -110,6 +110,7 @@ program
         id: r.id, title: r.title, severity: r.severity, confidence: r.confidence,
         category: r.category, mitre: r.mitre ?? null,
         mitreUrl: r.mitre ? mitreUrl(r.mitre) : null,
+        owasp: (r.owasp ?? []).map(id => ({ id, name: OWASP_CATEGORIES[id] ?? null })),
         categoryDescription: CATEGORY_BLURB[r.category] ?? null,
         remediation: r.remediation,
       })), null, 2));
@@ -126,6 +127,9 @@ program
       if (CATEGORY_BLURB[r.category]) console.log(`             ${CATEGORY_BLURB[r.category]}`);
       if (r.mitre) {
         console.log(`MITRE:       ${r.mitre}  (${mitreUrl(r.mitre)})`);
+      }
+      if (r.owasp?.length) {
+        console.log(`OWASP:       ${r.owasp.map(owaspLabel).join(', ')}`);
       }
       console.log(`Remediation: ${r.remediation}`);
       console.log(`Suppress:    // hound-disable-next-line ${r.id}`);

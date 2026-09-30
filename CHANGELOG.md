@@ -21,9 +21,19 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic V
   `security-severity` score, so GitHub code scanning labels alerts Critical,
   High, Medium or Low; results carry `ruleIndex`, severity and confidence;
   skipped files and the suppression count are reported as tool notifications.
+- **OWASP IDs on every rule.** Each rule maps to the OWASP Top 10 for LLM
+  Applications (2025, `LLM01` to `LLM10`) and/or the OWASP Top 10 for Agentic
+  Applications (2026, `ASI01` to `ASI10`). The IDs appear in `hound explain`
+  (console and JSON), `--verbose` output, SARIF tags and help, JSON/JSONL
+  findings, a new `owasp` CSV column, the Markdown details and HTML chips.
+- **`owasp-agentic` preset**, covering every rule mapped to an ASI category.
 
 ### Changed
 
+- **`owasp-llm-top10` preset** is built from the new mapping instead of a
+  fixed list of rule families, so it now also includes mapped CMD, ENC, AGT,
+  MCP, SKL and PST rules.
+- **CSV reports** have a trailing `owasp` column (IDs separated by `;`).
 - **`.houndignore` uses `.gitignore` syntax.** Directory patterns such as
   `secrets/` now work, patterns without a slash match at any depth and `!`
   re-includes a file. Existing glob patterns keep working.

@@ -14,6 +14,8 @@ export interface Rule {
   confidence: Confidence;
   category: 'injection' | 'exfiltration' | 'jailbreak' | 'unsafe-tools' | 'multimodal' | 'skills' | 'agentic' | 'mcp' | 'supply-chain' | 'dos' | 'persistence';
   mitre?: string;
+  /** OWASP LLM Top 10 (LLM01-LLM10) and Agentic Top 10 (ASI01-ASI10) IDs. */
+  owasp?: string[];
   remediation: string;
   /**
    * Also run on general documentation (README, changelogs, datasets), not just
@@ -70,5 +72,6 @@ export function ruleToFinding(rule: Rule, match: RuleMatch, filePath: string): F
     remediation: rule.remediation,
     riskPoints: calcRiskPoints(rule.severity, rule.confidence),
     ...(rule.mitre !== undefined && { mitre: rule.mitre }),
+    ...(rule.owasp?.length && { owasp: rule.owasp }),
   };
 }

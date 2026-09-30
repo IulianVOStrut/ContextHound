@@ -1,6 +1,7 @@
 import type { ScanResult, Finding, Severity, Confidence } from '../types.js';
 import type { Rule } from '../rules/types.js';
 import { allRules } from '../rules/index.js';
+import { owaspLabel } from '../rules/owasp.js';
 import { VERSION } from '../version.js';
 import { FINGERPRINT_VERSION } from '../scanner/fingerprint.js';
 
@@ -77,6 +78,7 @@ interface RuleInfo {
   remediation: string;
   category?: string;
   mitre?: string;
+  owasp?: string[];
 }
 
 function severityToLevel(severity: string): string {
@@ -109,6 +111,7 @@ function toSarifRule(info: RuleInfo): SarifRule {
   const tags = ['security', 'prompt-injection'];
   if (info.category) tags.push(info.category);
   if (info.mitre) tags.push(`attack:${info.mitre}`);
+  for (const id of info.owasp ?? []) tags.push(`owasp:${id}`);
 
   const markdown = [
     `**${info.id}: ${info.title}**`,
@@ -117,6 +120,7 @@ function toSarifRule(info: RuleInfo): SarifRule {
     '',
     `**Remediation:** ${info.remediation}`,
     ...(info.mitre ? ['', `MITRE ATT&CK: [${info.mitre}](${mitreUri(info.mitre)})`] : []),
+    ...(info.owasp?.length ? ['', `OWASP: ${info.owasp.map(owaspLabel).join(', ')}`] : []),
     '',
     `Run \`hound explain ${info.id}\` for details and the suppression comment.`,
   ].join('\n');

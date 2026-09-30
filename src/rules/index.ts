@@ -15,6 +15,7 @@ import { supplyChainRules } from './supplyChain.js';
 import { dosRules } from './dos.js';
 import { persistenceRules } from './persistence.js';
 import { taintRules } from './taint.js';
+import { OWASP_BY_RULE } from './owasp.js';
 
 export const allRules: Rule[] = [
   ...injectionRules,
@@ -35,7 +36,12 @@ export const allRules: Rule[] = [
   ...taintRules,
 ];
 
+for (const rule of allRules) {
+  if (!rule.owasp && OWASP_BY_RULE[rule.id]) rule.owasp = OWASP_BY_RULE[rule.id];
+}
+
 export { injectionRules, exfiltrationRules, jailbreakRules, unsafeToolsRules, commandInjectionRules, ragRules, encodingRules, outputHandlingRules, multimodalRules, skillsRules, agenticRules, mcpRules, supplyChainRules, dosRules, persistenceRules, taintRules };
 export type { Rule, RuleMatch } from './types.js';
 export { calcRiskPoints, ruleToFinding } from './types.js';
+export { OWASP_CATEGORIES, OWASP_BY_RULE, owaspLabel } from './owasp.js';
 export { scoreMitigations, mitigationReductionFor } from './mitigation.js';

@@ -142,6 +142,13 @@ describe('SARIF formatter', () => {
     expect(texts.some((t: string) => t.includes('3 finding(s) suppressed'))).toBe(true);
   });
 
+  it('tags rules with their OWASP IDs and names them in help', () => {
+    const sarif = JSON.parse(buildSarifReport(makeScanResult()));
+    const rule = sarif.runs[0].tool.driver.rules.find((r: { id: string }) => r.id === 'MCP-001');
+    expect(rule.properties.tags).toEqual(expect.arrayContaining(['owasp:LLM01', 'owasp:ASI01']));
+    expect(rule.help.markdown).toContain('LLM01 Prompt Injection');
+  });
+
   it('maps low severity to note', () => {
     const result = makeScanResult({
       allFindings: [makeFinding({ severity: 'low', id: 'INJ-002' })],
@@ -379,7 +386,7 @@ describe('CSV formatter', () => {
     const csv = buildCsvReport(result);
     const rows = csv.split('\n');
     expect(rows).toHaveLength(2); // header + 1 finding
-    expect(rows[0]).toBe('rule_id,severity,confidence,file,line_start,line_end,title,evidence,remediation,mitre_technique');
+    expect(rows[0]).toBe('rule_id,severity,confidence,file,line_start,line_end,title,evidence,remediation,mitre_technique,owasp');
   });
 
   it('includes all finding fields in the correct column order', () => {

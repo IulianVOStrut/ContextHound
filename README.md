@@ -55,6 +55,7 @@ It fits into your existing workflow as a CLI command, an `npm` script, or a GitH
 | | |
 |---|---|
 | **95 security rules** | Across 14 categories: injection, exfiltration, jailbreak, unsafe tool use, command injection, RAG poisoning, encoding, output handling, multimodal, skills marketplace, agentic, MCP, supply chain, DoS |
+| **OWASP mapping** | Every rule carries OWASP Top 10 for LLM Applications (2025) and Agentic Applications (2026) IDs, shown in `hound explain`, `--verbose`, SARIF tags and all reports |
 | **Numeric risk score (0-100)** | Normalized repo-level score with low, medium, high and critical thresholds |
 | **Mitigation detection** | Explicit safety language in your prompts reduces your score |
 | **7 output formats** | Console, JSON, SARIF, GitHub Annotations, Markdown, JSONL streaming, and interactive HTML |
@@ -362,13 +363,15 @@ Enable a curated subset of rules with `--preset` instead of listing IDs. Presets
 
 ```bash
 hound scan --preset owasp-llm-top10
+hound scan --preset owasp-agentic
 hound scan --preset mcp,agentic
 hound scan --list-presets          # show all presets and their rule patterns
 ```
 
 | Preset | Rules |
 |--------|-------|
-| `owasp-llm-top10` | INJ, JBK, EXF, OUT, RAG, TOOL, SCH, DOS, VIS |
+| `owasp-llm-top10` | Every rule mapped to an OWASP LLM Top 10 (2025) category (LLM01 to LLM10) |
+| `owasp-agentic` | Every rule mapped to an OWASP Agentic Top 10 (2026) category (ASI01 to ASI10) |
 | `injection` | INJ, RAG, ENC |
 | `jailbreak` | JBK |
 | `exfiltration` | EXF |

@@ -15,6 +15,8 @@ export interface Finding {
   remediation: string;
   riskPoints: number;
   mitre?: string;
+  /** OWASP LLM Top 10 and Agentic Top 10 IDs, e.g. ["LLM01", "ASI01"]. */
+  owasp?: string[];
   /** Stable identity used by baselines and SARIF partialFingerprints. */
   fingerprint?: string;
 }
