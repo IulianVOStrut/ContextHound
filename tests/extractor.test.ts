@@ -20,7 +20,7 @@ afterAll(() => {
   }
 });
 
-describe('extractPrompts — .md file', () => {
+describe('extractPrompts: .md file', () => {
   it('emits raw kind for a markdown file', () => {
     const p = writeTmp('test.md', '# Heading\nYou are a helpful assistant.\n');
     const prompts = extractPrompts(p);
@@ -29,7 +29,7 @@ describe('extractPrompts — .md file', () => {
   });
 });
 
-describe('extractPrompts — TypeScript template string', () => {
+describe('extractPrompts: TypeScript template string', () => {
   it('emits template-string kind for multi-line backtick string with ${userInput}', () => {
     // Template literal must span multiple lines for the extractor to detect it
     const code = 'const prompt = `\n  You are helpful. Answer: ${userInput}\n`;\n';
@@ -40,7 +40,7 @@ describe('extractPrompts — TypeScript template string', () => {
   });
 });
 
-describe('extractPrompts — Python file with LLM import', () => {
+describe('extractPrompts: Python file with LLM import', () => {
   it('emits code-block kind when from openai import is present', () => {
     const code = [
       'from openai import OpenAI',
@@ -57,7 +57,7 @@ describe('extractPrompts — Python file with LLM import', () => {
   });
 });
 
-describe('extractPrompts — skill.md file', () => {
+describe('extractPrompts: skill.md file', () => {
   it('emits both raw and code-block kinds for skill.md', () => {
     // Must use exact filename skill.md so the extractor detects it as a skill file
     const skillDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hound-skill-test-'));
@@ -74,7 +74,7 @@ describe('extractPrompts — skill.md file', () => {
   });
 });
 
-describe('extractPrompts — no LLM trigger', () => {
+describe('extractPrompts: no LLM trigger', () => {
   it('does not emit code-block for a TS file with no LLM trigger patterns', () => {
     const code = 'function add(a: number, b: number): number { return a + b; }\n';
     const p = writeTmp('util.ts', code);

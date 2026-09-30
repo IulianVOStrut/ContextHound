@@ -85,7 +85,7 @@ export const injectionRules: Rule[] = [
 
       // Filter out matches where a safe delimiter or sanitization wrapper is present nearby.
       // Recognises: backtick fences, <USER> tags, explicit "untrusted" labels, and
-      // sanitization/escaping function calls applied to the interpolated variable — the
+      // sanitization/escaping function calls applied to the interpolated variable: the
       // primary source of false positives for teams that properly clean inputs before use.
       // Character offset of each line, so the context window is taken around the
       // matched line itself (not the first identical line) without rescanning.
@@ -192,7 +192,7 @@ export const injectionRules: Rule[] = [
       const results: RuleMatch[] = [];
       const lines = prompt.text.split('\n');
 
-      // JSON.stringify(variable) — argument is a variable, not a literal ({}, [], string)
+      // JSON.stringify(variable): argument is a variable, not a literal ({}, [], string)
       const jsonStringifyVarPattern = /JSON\.stringify\s*\(\s*(?!['"`{\[]|\d)\s*[a-zA-Z_$]/i;
 
       lines.forEach((line, i) => {
@@ -437,7 +437,7 @@ export const injectionRules: Rule[] = [
     category: 'injection',
     mitre: 'T1190',
     remediation:
-      'Never read from window.location, document.cookie, innerHTML, or DOM elements and pass that value directly to an LLM API. Validate and sanitize all client-side inputs server-side before including them in prompts — treat them with the same distrust as req.body.',
+      'Never read from window.location, document.cookie, innerHTML, or DOM elements and pass that value directly to an LLM API. Validate and sanitize all client-side inputs server-side before including them in prompts: treat them with the same distrust as req.body.',
     check(prompt: ExtractedPrompt): RuleMatch[] {
       if (prompt.kind !== 'code-block') return [];
 
@@ -534,12 +534,12 @@ export const injectionRules: Rule[] = [
       const lines = prompt.text.split('\n');
 
       // Detect: role: "user" message whose content field derives directly from an LLM
-      // response object — indicated by .content, .text, or .choices accessor on the value.
+      // response object: indicated by .content, .text, or .choices accessor on the value.
       // e.g. { role: 'user', content: response.content }
       //      { role: 'user', content: completion.choices[0].message.content }
       // Require an explicit property accessor (`.` or `?.`) between the value
       // variable and the content/text/choices field. A bare identifier such as
-      // `userContent` must NOT match `user` + `.content` — the optional dot
+      // `userContent` must NOT match `user` + `.content`: the optional dot
       // previously allowed that, flagging safe code as a finding.
       const llmOutputContentPattern =
         /content\s*:\s*[a-z_$][a-z0-9_$]*\s*(?:\?\.|\.)\s*(?:content\b|text\b|choices?\s*[\[.])/i;

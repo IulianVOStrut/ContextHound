@@ -2,7 +2,7 @@
 //
 // A preset is a named bundle of rule-ID glob patterns (the same syntax accepted
 // by `includeRules`). It lets teams enable a curated subset of rules without
-// listing every ID — e.g. `hound scan --preset mcp`.
+// listing every ID, e.g. `hound scan --preset mcp`.
 
 import { OWASP_BY_RULE } from '../rules/owasp.js';
 

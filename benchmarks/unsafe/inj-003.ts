@@ -8,7 +8,7 @@ const openai = new OpenAI();
 const messages: { role: string; content: string }[] = [];
 
 export async function ragQuery(context: string, query: string): Promise<string> {
-  // No separator between retrieved context and user question — poisoned retrieval data
+  // No separator between retrieved context and user question: poisoned retrieval data
   // can inject instructions directly into the prompt.
   const userMessage = `Context: ${context}
 

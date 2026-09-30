@@ -4,7 +4,7 @@ import { maskSecrets } from './exfiltration.js';
 import type { ExtractedPrompt } from '../scanner/extractor.js';
 
 /**
- * Returns true when the file is an OpenClaw skill file — either a SKILL.md
+ * Returns true when the file is an OpenClaw skill file: either a SKILL.md
  * directly or any markdown file inside a skills/ or .openclaw/ directory tree.
  */
 function isSkillFile(filePath: string): boolean {
@@ -226,7 +226,7 @@ export const skillsRules: Rule[] = [
 
   {
     id: 'SKL-008',
-    title: 'Skill implements heartbeat C2 — scheduled remote fetch overwrites skill instructions',
+    title: 'Skill implements heartbeat C2: scheduled remote fetch overwrites skill instructions',
     severity: 'critical',
     confidence: 'high',
     category: 'skills',
@@ -294,7 +294,7 @@ export const skillsRules: Rule[] = [
     confidence: 'high',
     category: 'skills',
     remediation:
-      'This skill contains text explicitly designed to mislead automated security scanners — a confirmed indicator of a malicious skill attempting to evade detection. The "SECURITY NOTICE FOR AUTOMATED SCANNERS" pattern is used by agent rootkits to bypass auditing. Remove this skill immediately.',
+      'This skill contains text explicitly designed to mislead automated security scanners: a confirmed indicator of a malicious skill attempting to evade detection. The "SECURITY NOTICE FOR AUTOMATED SCANNERS" pattern is used by agent rootkits to bypass auditing. Remove this skill immediately.',
     check(prompt: ExtractedPrompt, filePath: string): RuleMatch[] {
       if (!isSkillFile(filePath)) return [];
       const results: RuleMatch[] = [];
@@ -321,7 +321,7 @@ export const skillsRules: Rule[] = [
     confidence: 'high',
     category: 'skills',
     remediation:
-      'Skills must never write to SOUL.md, IDENTITY.md, AGENTS.md, or other agent identity files. VirusTotal confirmed that malicious skills use this to persist behavioral changes after uninstallation — removing the skill removes the code but not the identity modification. Audit your SOUL.md for injected content.',
+      'Skills must never write to SOUL.md, IDENTITY.md, AGENTS.md, or other agent identity files. VirusTotal confirmed that malicious skills use this to persist behavioral changes after uninstallation: removing the skill removes the code but not the identity modification. Audit your SOUL.md for injected content.',
     check(prompt: ExtractedPrompt, filePath: string): RuleMatch[] {
       if (!isSkillFile(filePath)) return [];
       const results: RuleMatch[] = [];
@@ -343,7 +343,7 @@ export const skillsRules: Rule[] = [
 
   {
     id: 'SKL-012',
-    title: 'Skill contains self-propagation instructions — SSH spread or curl-pipe-bash worm pattern',
+    title: 'Skill contains self-propagation instructions: SSH spread or curl-pipe-bash worm pattern',
     severity: 'high',
     confidence: 'high',
     category: 'skills',

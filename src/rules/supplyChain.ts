@@ -19,20 +19,20 @@ function matchPattern(prompt: ExtractedPrompt, pattern: RegExp): RuleMatch[] {
 export const supplyChainRules: Rule[] = [
   {
     id: 'SCH-001',
-    title: 'Unsafe pickle or torch deserialization — arbitrary code execution risk',
+    title: 'Unsafe pickle or torch deserialization: arbitrary code execution risk',
     severity: 'critical',
     confidence: 'high',
     category: 'supply-chain',
     mitre: 'T1195.001',
     remediation:
-      'Never deserialize untrusted data with pickle.load() or pickle.loads() — they execute arbitrary Python code on load. For PyTorch model weights use torch.load(..., weights_only=True) (PyTorch ≥ 1.13). Prefer safe serialization formats (safetensors, ONNX, JSON) for any model artefact sourced externally.',
+      'Never deserialize untrusted data with pickle.load() or pickle.loads(): they execute arbitrary Python code on load. For PyTorch model weights use torch.load(..., weights_only=True) (PyTorch ≥ 1.13). Prefer safe serialization formats (safetensors, ONNX, JSON) for any model artefact sourced externally.',
     check(prompt: ExtractedPrompt): RuleMatch[] {
       if (prompt.kind !== 'code-block') return [];
 
       const results: RuleMatch[] = [];
       const lines = prompt.text.split('\n');
 
-      // pickle.load() / pickle.loads() — always dangerous
+      // pickle.load() / pickle.loads(): always dangerous
       const picklePattern = /\bpickle\.loads?\s*\(/i;
 
       // torch.load() without weights_only=True in the same call / nearby lines

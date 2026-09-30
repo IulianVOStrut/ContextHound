@@ -4,7 +4,7 @@ import type { ExtractedPrompt } from '../scanner/extractor.js';
 export const dosRules: Rule[] = [
   {
     id: 'DOS-001',
-    title: 'Unbounded LLM completion — reasoning-inflation / ThinkTrap risk',
+    title: 'Unbounded LLM completion: reasoning-inflation / ThinkTrap risk',
     severity: 'medium',
     confidence: 'medium',
     category: 'dos',
@@ -27,8 +27,8 @@ export const dosRules: Rule[] = [
 
       // A missing cap is only a DoS lever when something can drive the output
       // long. Require a reasoning model (emits unbounded reasoning tokens) or an
-      // explicit output-inflation instruction in the prompt — the actual
-      // ThinkTrap vector — rather than flagging every uncapped call.
+      // explicit output-inflation instruction in the prompt (the actual
+      // ThinkTrap vector) rather than flagging every uncapped call.
       const reasoningModel =
         /\bo[1-4](?:-(?:mini|preview|pro))?\b|reasoning_effort|extended[\s_]thinking|thinking\s*[:=]/i;
       const inflationPrompt =

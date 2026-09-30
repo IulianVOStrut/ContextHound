@@ -220,7 +220,7 @@ export const jailbreakRules: Rule[] = [
   },
   {
     id: 'JBK-011',
-    title: 'Instruction dismissal — prior rules framed as obsolete or superseded',
+    title: 'Instruction dismissal: prior rules framed as obsolete or superseded',
     severity: 'high',
     confidence: 'high',
     category: 'jailbreak',
@@ -235,7 +235,7 @@ export const jailbreakRules: Rule[] = [
   },
   {
     id: 'JBK-012',
-    title: 'Priority downgrade — system instructions demoted below user input',
+    title: 'Priority downgrade: system instructions demoted below user input',
     severity: 'high',
     confidence: 'high',
     category: 'jailbreak',

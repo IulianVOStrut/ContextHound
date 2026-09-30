@@ -9,7 +9,7 @@ export const multimodalRules: Rule[] = [
     confidence: 'high',
     category: 'multimodal',
     remediation:
-      'Validate image URLs against an allowlist of trusted domains before forwarding to a vision model. For base64 data, verify the MIME type and size server-side. Never pass req.body/req.query values directly as image_url.url or source.data — treat them as untrusted input.',
+      'Validate image URLs against an allowlist of trusted domains before forwarding to a vision model. For base64 data, verify the MIME type and size server-side. Never pass req.body/req.query values directly as image_url.url or source.data: treat them as untrusted input.',
     check(prompt: ExtractedPrompt): RuleMatch[] {
       if (prompt.kind !== 'code-block') return [];
 
@@ -86,7 +86,7 @@ export const multimodalRules: Rule[] = [
     confidence: 'medium',
     category: 'multimodal',
     remediation:
-      'Treat transcription output as untrusted external content — the same mitigations as RAG poisoning apply. Wrap it in explicit delimiters labeled "untrusted transcription", reject instruction-like phrases, limit length, and insert it only in role: "user", never role: "system".',
+      'Treat transcription output as untrusted external content: the same mitigations as RAG poisoning apply. Wrap it in explicit delimiters labeled "untrusted transcription", reject instruction-like phrases, limit length, and insert it only in role: "user", never role: "system".',
     check(prompt: ExtractedPrompt): RuleMatch[] {
       if (prompt.kind !== 'code-block') return [];
 
@@ -130,7 +130,7 @@ export const multimodalRules: Rule[] = [
     confidence: 'medium',
     category: 'multimodal',
     remediation:
-      'OCR output is external, attacker-influenced content — a physical document or image can contain injected instructions. Never interpolate it into a system-role message or system prompt. Insert OCR text exclusively in the user turn with clear delimiters, and strip instruction-like phrases before use.',
+      'OCR output is external, attacker-influenced content: a physical document or image can contain injected instructions. Never interpolate it into a system-role message or system prompt. Insert OCR text exclusively in the user turn with clear delimiters, and strip instruction-like phrases before use.',
     check(prompt: ExtractedPrompt): RuleMatch[] {
       if (prompt.kind !== 'code-block') return [];
 

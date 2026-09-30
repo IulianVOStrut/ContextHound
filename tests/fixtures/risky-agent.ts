@@ -1,6 +1,6 @@
 // Fixture: agentic code patterns similar to the Gemini CLI vulnerabilities
 // reported by Cyera Research Labs (Issue 433939935 and Issue 433939640).
-// Used by the scanner integration tests — NOT production code.
+// Used by the scanner integration tests: NOT production code.
 
 import { execSync } from 'child_process';
 import glob from 'fast-glob';
@@ -16,12 +16,12 @@ function installExtension(extensionDir: string): void {
 }
 
 // CMD-002 pattern: incomplete command substitution filtering.
-// Mirrors Gemini CLI shell.ts:112 — blocks $() but not backticks.
+// Mirrors Gemini CLI shell.ts:112, which blocks $() but not backticks.
 function validateCommand(command: string): { allowed: boolean; reason?: string } {
   if (command.includes('$(')) {
     return { allowed: false, reason: 'Command substitution using $() is not allowed' };
   }
-  // Missing: backtick check — `malicious_command` is equally dangerous.
+  // Missing: backtick check. `malicious_command` is equally dangerous.
   return { allowed: true };
 }
 

@@ -20,7 +20,7 @@
     },
     {
       "file": "command-runner.ts",
-      "description": "Shell command runner using spawn with argument array — no interpolated template strings"
+      "description": "Shell command runner using spawn with argument array: no interpolated template strings"
     },
     {
       "file": "README.md",
@@ -138,7 +138,7 @@
     },
     {
       "file": "inj-015.ts",
-      "description": "Untrusted req.query data aliased into an arbitrarily named variable that flows into a prompt — taint analysis",
+      "description": "Untrusted req.query data aliased into an arbitrarily named variable that flows into a prompt: taint analysis",
       "expectFindings": [
         "INJ-015"
       ]

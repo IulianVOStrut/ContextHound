@@ -40,7 +40,7 @@ function tryDecodeBase32(s: string): string | null {
     if (bits >= 8) {
       bits -= 8;
       const code = (value >> bits) & 0xff;
-      // Reject non-printable ASCII — avoids replacing legitimate tokens
+      // Reject non-printable ASCII: avoids replacing legitimate tokens
       if (code < 32 || code > 126) return null;
       output += String.fromCharCode(code);
     }
@@ -94,10 +94,10 @@ function foldVowelHomoglyphs(text: string): string {
  * rules match obfuscated injection content as well as plaintext.
  *
  * Passes (order matters):
- *  1. Iterative URL decode   — catches %xx and double-encoded %25xx
- *  2. Octal escape decode    — catches \151\147\156\157\162\145 → "ignore"
- *  3. Base32 decode          — catches base32-encoded instruction strings
- *  4. Vowel homoglyph fold   — normalises visually substituted vowel characters
+ *  1. Iterative URL decode: catches %xx and double-encoded %25xx
+ *  2. Octal escape decode: catches \151\147\156\157\162\145 → "ignore"
+ *  3. Base32 decode: catches base32-encoded instruction strings
+ *  4. Vowel homoglyph fold: normalises visually substituted vowel characters
  *
  * Not applied to code-block prompts (full source files) to avoid mangling code.
  */
@@ -141,19 +141,19 @@ const BASE64_CALL_PATTERN =
 const JSON_PARSE_PATTERN = /JSON\.parse\s*\(/i;
 const MD_RENDER_PATTERN =
   /(?:marked\s*[.(]|marked\.parse\s*\(|markdownIt\s*[.(]|new\s+MarkdownIt|dangerouslySetInnerHTML\s*=)/i;
-// eval(variable) — triggers OUT-003; intentionally excludes eval('string literal')
+// eval(variable): triggers OUT-003; intentionally excludes eval('string literal')
 const EVAL_DYNAMIC_PATTERN = /\beval\s*\(\s*(?!['"`\d{[])/i;
-// Vision API image content structure — triggers VIS-001, VIS-002
+// Vision API image content structure: triggers VIS-001, VIS-002
 const VISION_API_PATTERN = /type\s*:\s*['"`]image_url['"`]/i;
-// Transcription API calls — triggers VIS-003
+// Transcription API calls: triggers VIS-003
 const TRANSCRIPTION_API_PATTERN = /\.transcriptions\.create\s*\(|openai\.audio\.transcriptions/i;
-// OCR library/API calls — triggers VIS-004
+// OCR library/API calls: triggers VIS-004
 const OCR_API_PATTERN = /Tesseract\.createWorker\s*\(|vision\.textDetection\s*\(/i;
-// Browser DOM / URL sources — triggers INJ-011
+// Browser DOM / URL sources: triggers INJ-011
 const DOM_SOURCE_PATTERN = /window\.location\.(?:search|hash|href)|document\.cookie\b|document\.querySelector\s*\(|document\.getElementById\s*\(/i;
-// MCP (Model Context Protocol) SDK imports — triggers MCP-001 through MCP-005
+// MCP (Model Context Protocol) SDK imports: triggers MCP-001 through MCP-005
 const MCP_PATTERN = /@modelcontextprotocol\/sdk|StdioServerTransport|StdioClientTransport|SSEClientTransport|McpServer\b|CreateMessageRequestSchema/i;
-// LLM completion calls — triggers DOS-001 in files that don't already match MESSAGES_PUSH_PATTERN
+// LLM completion calls: triggers DOS-001 in files that don't already match MESSAGES_PUSH_PATTERN
 const COMPLETIONS_PATTERN = /\.chat\.completions\.create\s*\(\s*\{|\.messages\.create\s*\(\s*\{/i;
 
 function isCodeFile(filePath: string): boolean {
@@ -234,7 +234,7 @@ export function extractPrompts(filePath: string, preloaded?: string): ExtractedP
   }
 
   // Apply encoding normalisation to all non-code-block prompts.
-  // code-block prompts are full source files — normalising them would mangle
+  // code-block prompts are full source files: normalising them would mangle
   // code syntax and produce false positives in code-aware rules.
   return results.map(p =>
     p.kind === 'code-block' ? p : { ...p, text: normalise(p.text) }

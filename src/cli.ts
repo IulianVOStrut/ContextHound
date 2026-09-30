@@ -121,7 +121,7 @@ program
 
     for (const r of matches) {
       console.log('');
-      console.log(`${r.id} — ${r.title}`);
+      console.log(`${r.id}: ${r.title}`);
       console.log('─'.repeat(Math.max(20, r.id.length + r.title.length + 3)));
       console.log(`Severity:    ${r.severity}`);
       console.log(`Confidence:  ${r.confidence}`);

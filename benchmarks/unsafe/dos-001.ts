@@ -16,7 +16,7 @@ export async function deepDive(question: string): Promise<string> {
         role: 'user',
         content:
           'Think step by step and be as exhaustive as possible. ' +
-          'Do not summarize or stop early — explain every detail in full detail: ' +
+          'Do not summarize or stop early; explain every detail in full detail: ' +
           question,
       },
     ],

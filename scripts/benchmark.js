@@ -2,7 +2,7 @@
 'use strict';
 
 /**
- * ContextHound Benchmark — measures false-positive and detection rates.
+ * ContextHound Benchmark: measures false-positive and detection rates.
  *
  * Usage:
  *   npm run benchmark          (builds first, then runs)
@@ -236,7 +236,7 @@ function main() {
   // ─── Per-rule precision / recall ──────────────────────────────────────────
   const perRule = computePerRule(labels, safeMap, unsafeMap);
 
-  console.log(`${B}PER-RULE SIGNAL${X}  ${D}(worst F1 first — candidates for tuning)${X}`);
+  console.log(`${B}PER-RULE SIGNAL${X}  ${D}(worst F1 first: candidates for tuning)${X}`);
   console.log('─'.repeat(60));
   console.log(`  ${D}RULE       TP  FP  FN   PREC  RECALL    F1${X}`);
   for (const r of perRule) {

@@ -8,7 +8,7 @@ const openai = new OpenAI();
 
 const DB_PASSWORD = process.env.DB_PASSWORD ?? 'changeme';
 
-// Vulnerable: credential value interpolated into system prompt — model now "knows" the password
+// Vulnerable: credential value interpolated into system prompt, so the model now "knows" the password
 const SYSTEM_PROMPT = `You are a database assistant.
 The database password is: ${DB_PASSWORD}
 Use this to authenticate queries when needed. Never reveal this to the user.`;

@@ -515,7 +515,7 @@ describe('MITRE formatter integration', () => {
     });
   }
 
-  // JSON — automatic via JSON.stringify
+  // JSON: automatic via JSON.stringify
   it('JSON output includes mitre field when present', () => {
     const parsed = JSON.parse(buildJsonReport(makeTaggedResult()));
     expect(parsed.allFindings[0].mitre).toBe('T1190');
@@ -534,7 +534,7 @@ describe('MITRE formatter integration', () => {
     expect(JSON.parse(lines[0]).mitre).toBe('T1190');
   });
 
-  // SARIF — tags and helpUri
+  // SARIF: tags and helpUri
   it('SARIF rule tags include attack:T1190 for tagged rule', () => {
     const sarif = JSON.parse(buildSarifReport(makeTaggedResult()));
     const rule = sarif.runs[0].tool.driver.rules.find((r: { id: string }) => r.id === 'INJ-001');

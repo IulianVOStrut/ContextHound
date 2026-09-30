@@ -59,7 +59,7 @@ export const outputHandlingRules: Rule[] = [
         /json\.loads\s*\(\s*(?!['"`{\[]|\d)\s*[a-z_][a-z0-9_$.[\]'"]*\s*[)]/i;
 
       // Presence of a schema validation library in the file.
-      // (?<!JSON)\.parse avoids matching JSON.parse — we want Zod/AJV .parse() only.
+      // (?<!JSON)\.parse avoids matching JSON.parse: we want Zod/AJV .parse() only.
       const schemaValidatorPattern =
         /(?:(?<!JSON)\.parse\s*\(|\.safeParse\s*\(|\.validate\s*\(|ajv\b|new\s+Ajv|Joi\s*\.|z\s*\.\s*(?:object|string|number|array|boolean|enum|union|infer)\b|yup\s*\.)/i;
       // Python schema validators
@@ -147,7 +147,7 @@ export const outputHandlingRules: Rule[] = [
   },
   {
     id: 'OUT-005',
-    title: 'LLM output written to shared cache without validation — cache poisoning risk',
+    title: 'LLM output written to shared cache without validation: cache poisoning risk',
     severity: 'high',
     confidence: 'medium',
     category: 'injection',

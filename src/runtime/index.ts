@@ -16,7 +16,7 @@ export type {
 export interface HoundGuard {
   /**
    * Inspect a message array. Returns findings and score without taking any
-   * action — the caller decides what to do with the result.
+   * action: the caller decides what to do with the result.
    */
   inspect(messages: RuntimeMessage[]): InspectResult;
 
@@ -40,7 +40,7 @@ export interface HoundGuard {
  * // Standalone inspection
  * const result = guard.inspect(messages);
  *
- * // Wrapped call — throws HoundBlockedError if blocked
+ * // Wrapped call: throws HoundBlockedError if blocked
  * const response = await guard.wrap(messages, () =>
  *   openai.chat.completions.create({ model: 'gpt-4o', messages })
  * );

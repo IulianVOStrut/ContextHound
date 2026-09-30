@@ -27,7 +27,7 @@ export const encodingRules: Rule[] = [
     remediation:
       'Never use Base64 encoding to sanitise user input before inserting it into a prompt. LLMs can decode Base64 and may execute embedded instructions. Validate and delimit input as plaintext instead.',
     check(prompt: ExtractedPrompt): RuleMatch[] {
-      // Skip plain-text files — Base64 API calls do not appear in raw prompts
+      // Skip plain-text files: Base64 API calls do not appear in raw prompts
       if (prompt.kind === 'raw') return [];
 
       // For full-file code-block extractions, require prompt-construction context
@@ -43,9 +43,9 @@ export const encodingRules: Rule[] = [
       const results: RuleMatch[] = [];
       const lines = prompt.text.split('\n');
 
-      // atob(variable) or btoa(variable) — argument is a variable, not a literal
+      // atob(variable) or btoa(variable): argument is a variable, not a literal
       const base64VarPattern = /(?:atob|btoa)\s*\(\s*(?!['"`\d])\s*[a-zA-Z_$]/i;
-      // Buffer.from(variable, 'base64') — decoding from base64 using a variable
+      // Buffer.from(variable, 'base64'): decoding from base64 using a variable
       const bufferDecodePattern =
         /Buffer\.from\s*\(\s*(?!['"`\d])\s*[a-zA-Z_$][^,)]*,\s*['"]base64['"]/i;
 
@@ -98,17 +98,17 @@ export const encodingRules: Rule[] = [
   },
   {
     id: 'ENC-003',
-    title: 'Unicode Tags block characters detected — steganographic injection risk',
+    title: 'Unicode Tags block characters detected: steganographic injection risk',
     severity: 'critical',
     confidence: 'high',
     category: 'injection',
     mitre: 'T1027',
     remediation:
-      'Strip or reject all characters in the Unicode Tags block (U+E0000–U+E007F) from any externally sourced content before it enters a prompt. These invisible characters are used in active exploits to hide instructions from human reviewers while remaining readable to LLMs.',
+      'Strip or reject all characters in the Unicode Tags block (U+E0000 to U+E007F) from any externally sourced content before it enters a prompt. These invisible characters are used in active exploits to hide instructions from human reviewers while remaining readable to LLMs.',
     docs: true,
     check(prompt: ExtractedPrompt): RuleMatch[] {
       // Tags block characters are in the supplementary plane; represented as
-      // surrogate pairs \uDB40\uDC00–\uDB40\uDC7F in JS strings.
+      // surrogate pairs \uDB40\uDC00 to \uDB40\uDC7F in JS strings.
       const tagsPattern = /\uDB40[\uDC00-\uDC7F]/;
       const results: RuleMatch[] = [];
       const lines = prompt.text.split('\n');
@@ -126,7 +126,7 @@ export const encodingRules: Rule[] = [
   },
   {
     id: 'ENC-004',
-    title: 'Consecutive zero-width character sequence — covert encoding detected',
+    title: 'Consecutive zero-width character sequence: covert encoding detected',
     severity: 'high',
     confidence: 'high',
     category: 'injection',
@@ -153,18 +153,18 @@ export const encodingRules: Rule[] = [
   },
   {
     id: 'ENC-005',
-    title: 'Unicode variation selector sequence — invisible payload encoding',
+    title: 'Unicode variation selector sequence: invisible payload encoding',
     severity: 'high',
     confidence: 'high',
     category: 'injection',
     docs: true,
     mitre: 'T1027',
     remediation:
-      'Strip Unicode variation selectors (U+FE00–U+FE0F and U+E0100–U+E01EF) from all externally sourced content. Sequences of variation selectors are used to encode arbitrary binary payloads invisibly alongside normal text.',
+      'Strip Unicode variation selectors (U+FE00 to U+FE0F and U+E0100 to U+E01EF) from all externally sourced content. Sequences of variation selectors are used to encode arbitrary binary payloads invisibly alongside normal text.',
     check(prompt: ExtractedPrompt): RuleMatch[] {
-      // VS1–VS16 (BMP): U+FE00–U+FE0F — sequence of 3+ is suspicious
+      // VS1 to VS16 (BMP): U+FE00 to U+FE0F, a sequence of 3+ is suspicious
       const vs1to16Pattern = /[\uFE00-\uFE0F]{3,}/;
-      // VS17–VS256 (supplementary): surrogate pair \uDB40\uDD00–\uDB40\uDDEF
+      // VS17 to VS256 (supplementary): surrogate pair \uDB40\uDD00 to \uDB40\uDDEF
       const vs17plusPattern = /(?:\uDB40[\uDD00-\uDDEF]){3,}/;
       const results: RuleMatch[] = [];
       const lines = prompt.text.split('\n');

@@ -39,7 +39,7 @@ function extractText(content: string | ContentPart[]): string {
  * Every message is emitted as both `raw` (for content-scanning rules: JBK, EXF,
  * ENC, INJ) and `code-block` (for multi-line context rules: AGT, RAG, CMD, OUT,
  * MCP).  Because rules gate on `prompt.kind`, emitting both kinds does not double
- * the findings — each rule fires on exactly the kind it expects.
+ * the findings: each rule fires on exactly the kind it expects.
  */
 export function runInspect(
   messages: RuntimeMessage[],
@@ -61,7 +61,7 @@ export function runInspect(
     const text = extractText(msg.content);
     if (!text.trim()) continue;
 
-    // Unique synthetic path per message — keeps the dedup namespace separate
+    // Unique synthetic path per message: keeps the dedup namespace separate
     // across messages and lets rules that gate on path.extname() fire correctly.
     const syntheticPath = `_hound_msg_${i}.${languageHint}`;
 

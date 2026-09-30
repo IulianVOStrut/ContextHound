@@ -1,4 +1,4 @@
-# ContextHound pre-commit hook definitions — https://pre-commit.com
+# ContextHound pre-commit hook definitions: https://pre-commit.com
 #
 # Usage in a consumer repo's .pre-commit-config.yaml:
 #
