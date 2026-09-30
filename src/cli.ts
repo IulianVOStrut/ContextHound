@@ -3,6 +3,7 @@ import { Command } from 'commander';
 import fs from 'fs';
 import path from 'path';
 import { loadConfig, ConfigError, parseEnumOption, parseIntegerOption } from './config/loader.js';
+import { computeFixes, applyFixes } from './fix.js';
 import { OUTPUT_FORMATS, FAIL_ON_LEVELS, CONFIDENCE_LEVELS } from './config/schema.js';
 import { runScan } from './scanner/pipeline.js';
 import { discoverFiles } from './scanner/discover.js';
@@ -111,6 +112,7 @@ program
         category: r.category, mitre: r.mitre ?? null,
         mitreUrl: r.mitre ? mitreUrl(r.mitre) : null,
         owasp: (r.owasp ?? []).map(id => ({ id, name: OWASP_CATEGORIES[id] ?? null })),
+        autofix: typeof r.fix === 'function',
         categoryDescription: CATEGORY_BLURB[r.category] ?? null,
         remediation: r.remediation,
       })), null, 2));
@@ -132,10 +134,56 @@ program
         console.log(`OWASP:       ${r.owasp.map(owaspLabel).join(', ')}`);
       }
       console.log(`Remediation: ${r.remediation}`);
+      if (r.fix) console.log('Autofix:     hound fix --write');
       console.log(`Suppress:    // hound-disable-next-line ${r.id}`);
     }
     console.log('');
     if (matches.length > 1) console.log(`${matches.length} rules matched "${ruleId}".`);
+    process.exit(0);
+  });
+
+// ── fix command ──────────────────────────────────────────────────────────────
+
+program
+  .command('fix')
+  .description('Remove hidden Unicode characters reported by ENC-002 to ENC-005 (preview unless --write)')
+  .option('-d, --dir <path>', 'Directory to scan', '.')
+  .option('-c, --config <path>', 'Path to .contexthoundrc.json config file')
+  .option('--write', 'Apply the fixes instead of previewing them')
+  .action(async (opts: { dir: string; config?: string; write?: boolean }) => {
+    const cwd = path.resolve(opts.dir);
+    let config: AuditConfig;
+    try {
+      config = buildConfig({ config: opts.config }, cwd);
+    } catch (err) {
+      if (err instanceof ConfigError) {
+        console.error(`Error: ${err.message}`);
+        process.exit(1);
+      }
+      throw err;
+    }
+
+    const fixes = await computeFixes(cwd, config);
+    const lineCount = fixes.reduce((n, f) => n + f.changes.length, 0);
+    if (lineCount === 0) {
+      console.log('Nothing to fix.');
+      process.exit(0);
+    }
+    for (const fix of fixes) {
+      console.log(`\n${toTerminalSafe(fix.file)}`);
+      for (const c of fix.changes) {
+        console.log(`  line ${c.line} (${c.ruleIds.join(', ')})`);
+        console.log(`  - ${toTerminalSafe(c.before)}`);
+        console.log(`  + ${toTerminalSafe(c.after)}`);
+      }
+    }
+    console.log('');
+    if (opts.write) {
+      applyFixes(fixes);
+      console.log(`Fixed ${lineCount} line(s) in ${fixes.length} file(s).`);
+    } else {
+      console.log(`${lineCount} line(s) in ${fixes.length} file(s) can be fixed. Run with --write to apply.`);
+    }
     process.exit(0);
   });
 

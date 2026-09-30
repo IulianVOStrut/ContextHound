@@ -23,6 +23,12 @@ export interface Rule {
    * hidden characters, real secret values, hidden instructions.
    */
   docs?: boolean;
+  /**
+   * Safe automatic fix for one reported line: returns the corrected line.
+   * Only for changes that cannot alter program behaviour, such as removing
+   * invisible characters. Used by `hound fix`.
+   */
+  fix?(line: string): string;
   check(prompt: ExtractedPrompt, filePath: string): RuleMatch[];
 }
 

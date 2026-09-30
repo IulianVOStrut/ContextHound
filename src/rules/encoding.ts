@@ -196,3 +196,14 @@ export const encodingRules: Rule[] = [
     },
   },
 ];
+
+// Safe fixes: removing invisible characters never changes what the text says.
+const fixes: Record<string, (line: string) => string> = {
+  'ENC-002': line => line.replace(/[\u200B-\u200F\u2028\u2029\u202A-\u202E\u2066-\u2069\uFEFF]/g, ''),
+  'ENC-003': line => line.replace(/\uDB40[\uDC00-\uDC7F]/g, ''),
+  'ENC-004': line => line.replace(/[\u200B\u200C\u200D]{3,}/g, ''),
+  'ENC-005': line => line.replace(/[\uFE00-\uFE0F]{3,}/g, '').replace(/(?:\uDB40[\uDD00-\uDDEF]){3,}/g, ''),
+};
+for (const rule of encodingRules) {
+  if (fixes[rule.id]) rule.fix = fixes[rule.id];
+}

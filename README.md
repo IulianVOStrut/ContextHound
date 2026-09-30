@@ -148,6 +148,10 @@ hound scan --no-cache
 # Also scan files that git ignores (skipped by default)
 hound scan --no-gitignore
 
+# Preview, then remove, hidden Unicode characters flagged by ENC-002 to ENC-005
+hound fix
+hound fix --write
+
 # Baseline mode — only report findings new since the last saved scan
 hound scan --format json --out baseline          # save a baseline
 hound scan --baseline baseline.json             # compare future scans against it

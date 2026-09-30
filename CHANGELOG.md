@@ -33,6 +33,13 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic V
   what the pull request changed. Untrusted values are rendered as code, only
   the workflow's own comment is ever edited, and fork pull requests get a
   warning instead of a failure. `buildPrComment` is exported for library use.
+- **`hound fix`** removes the hidden Unicode characters reported by ENC-002
+  to ENC-005 (zero-width characters, bidi controls, Unicode tag characters
+  and variation-selector runs). It previews the changes with the characters
+  shown as `<U+XXXX>` markers and only writes with `--write`; suppressed
+  findings are left alone. Other rules are not auto-fixed because a
+  mechanical rewrite (for example of `shell: true` or `eval`) could change
+  what the code does. `hound explain` notes which rules have a fix.
 - **More config locations and `extends`.** Config is also read from
   `.contexthoundrc` and from a `"contexthound"` section in `package.json`.
   `extends` builds on `contexthound:recommended`, `contexthound:strict`,
