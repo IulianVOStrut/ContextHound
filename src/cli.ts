@@ -8,7 +8,7 @@ import { runScan } from './scanner/pipeline.js';
 import { discoverFiles } from './scanner/discover.js';
 import { resolveDiffRef } from './scanner/gitDiff.js';
 import { applyBaseline, loadBaseline } from './scanner/baseline.js';
-import { createPathMapper } from './scanner/paths.js';
+import { createPathMapper, pathKey } from './scanner/paths.js';
 import { PRESETS, resolvePresets } from './config/presets.js';
 import { printConsoleReport } from './report/console.js';
 import { buildJsonReport } from './report/json.js';
@@ -394,7 +394,7 @@ async function runWatchMode(cwd: string, config: AuditConfig, status: StatusLogg
   const ownOutputs = new Set<string>([
     path.join(cwd, '.hound-cache.json'),
     ...Object.values(reportPaths(config, cwd)).filter((p): p is string => !!p),
-  ]);
+  ].map(pathKey));
 
   const findingKeys = (r: ScanResult) =>
     new Map(r.files.map(fr => [fr.file, new Set(fr.findings.map(f => f.fingerprint ?? `${f.id}:${f.lineStart}`))]));
@@ -413,8 +413,8 @@ async function runWatchMode(cwd: string, config: AuditConfig, status: StatusLogg
     const changed = [...pending];
     pending.clear();
     // Only rescan for files in scope (or previously reported, which covers deletions).
-    const inScope = new Set(await discoverFiles(cwd, config));
-    const relevant = changed.filter(p => inScope.has(p) || previous.has(paths.toReport(p)));
+    const inScope = new Set((await discoverFiles(cwd, config)).map(pathKey));
+    const relevant = changed.filter(p => inScope.has(pathKey(p)) || previous.has(paths.toReport(p)));
     if (relevant.length === 0) return;
 
     try {
@@ -438,7 +438,7 @@ async function runWatchMode(cwd: string, config: AuditConfig, status: StatusLogg
 
   const onEvent = (filePath: string) => {
     const abs = path.resolve(cwd, filePath);
-    if (ownOutputs.has(abs)) return;
+    if (ownOutputs.has(pathKey(abs))) return;
     pending.add(abs);
     clearTimeout(timer);
     timer = setTimeout(() => { running = running.then(flush); }, 150);

@@ -10,7 +10,7 @@ import { loadCache, saveCache, getCachedFindings, setCacheEntry, computeCacheSig
 import type { HoundCache } from './cache.js';
 import { parseSuppressions, applySuppressions } from './suppressions.js';
 import { getChangedFiles } from './gitDiff.js';
-import { createPathMapper } from './paths.js';
+import { createPathMapper, pathKey } from './paths.js';
 import { assignFingerprints } from './fingerprint.js';
 import type { UnusedSuppression, SkippedFile } from '../types.js';
 import { DEFAULT_MAX_FILE_SIZE } from '../config/defaults.js';
@@ -91,7 +91,7 @@ export async function runScan(
   if (config.diff) {
     const changed = getChangedFiles(cwd, config.diff);
     if (changed) {
-      files = files.filter(f => changed.has(f));
+      files = files.filter(f => changed.has(pathKey(f)));
     } else {
       console.warn(`Warning: could not compute git diff against '${config.diff}'; scanning all files`);
     }
