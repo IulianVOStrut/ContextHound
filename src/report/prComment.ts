@@ -51,7 +51,8 @@ export function buildPrComment(result: ScanResult, options: PrCommentOptions = {
   const scope = options.diffRef ? ` in files changed since ${cellCode(options.diffRef)}` : '';
   lines.push(`Risk score **${result.repoScore}/100** (${result.scoreLabel}), threshold ${result.threshold}. ` +
     `${findings.length} finding${findings.length === 1 ? '' : 's'}${scope}.`);
-  for (const failure of result.failures ?? []) lines.push(`- ${failure.message}`);
+  // Failure messages can quote a scanned file path, so they are code too.
+  for (const failure of result.failures ?? []) lines.push(`- ${markdownCode(failure.message)}`);
   lines.push('');
 
   if (findings.length === 0) {

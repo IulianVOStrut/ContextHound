@@ -60,6 +60,13 @@ describe('buildPrComment', () => {
     }
   });
 
+  it('renders failure messages, which can quote file paths, as code', () => {
+    const r = result([finding()], false);
+    r.failures = [{ kind: 'file-threshold', message: 'File x/@admin <img src=x>.ts scored 90' }];
+    const line = buildPrComment(r).split('\n').find(l => l.includes('@admin'))!;
+    expect(line.replace(/(`+)[\s\S]*?\1/g, '')).not.toMatch(/@admin|<img/);
+  });
+
   it('caps the table and says how many were left out', () => {
     const many = Array.from({ length: 60 }, (_, i) => finding({ lineStart: i + 1 }));
     const body = buildPrComment(result(many), { maxRows: 50 });

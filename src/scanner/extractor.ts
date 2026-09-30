@@ -277,6 +277,23 @@ function extractFromStructured(content: string): ExtractedPrompt[] {
   return results;
 }
 
+/**
+ * Whether the template literal starting at column `tick` of line `index` is
+ * an error or log message. When nothing but whitespace precedes it, the call
+ * may have opened on the previous line (`throw new Error(` then the literal).
+ */
+function isMessageLiteral(lines: string[], index: number, tick: number): boolean {
+  const before = lines[index].slice(Math.max(0, tick - MESSAGE_SINK_WINDOW), tick);
+  if (MESSAGE_SINK_PREFIX.test(before)) return true;
+  if (before.trim() !== '' || tick > MESSAGE_SINK_WINDOW) return false;
+  for (let j = index - 1; j >= 0 && j >= index - 3; j--) {
+    const prev = lines[j];
+    if (prev.trim() === '') continue;
+    return MESSAGE_SINK_PREFIX.test(prev.slice(-MESSAGE_SINK_WINDOW));
+  }
+  return false;
+}
+
 function extractFromCode(content: string, _filePath: string): ExtractedPrompt[] {
   const results: ExtractedPrompt[] = [];
   const lines = content.split('\n');
@@ -301,9 +318,7 @@ function extractFromCode(content: string, _filePath: string): ExtractedPrompt[] 
       // Closing backtick
       templateLines.push(line);
       const text = templateLines.join('\n');
-      const opener = templateLines[0];
-      const tick = opener.indexOf('`');
-      const isMessage = MESSAGE_SINK_PREFIX.test(opener.slice(Math.max(0, tick - MESSAGE_SINK_WINDOW), tick));
+      const isMessage = isMessageLiteral(lines, templateStart, templateLines[0].indexOf('`'));
       if (!isMessage && (SYSTEM_PHRASE_PATTERN.test(text) || PROMPT_KEY_PATTERN.test(text))) {
         results.push({
           text,
@@ -327,8 +342,7 @@ function extractFromCode(content: string, _filePath: string): ExtractedPrompt[] 
     // extracted before, so `const p = \`You are a bot. ${input}\`;` was missed.
     if (!inTemplateLiteral && backtickCount >= 2 && backtickCount % 2 === 0) {
       for (const m of line.matchAll(/`(?:[^`\\]|\\.)*`/g)) {
-        const at = m.index ?? 0;
-        if (MESSAGE_SINK_PREFIX.test(line.slice(Math.max(0, at - MESSAGE_SINK_WINDOW), at))) continue;
+        if (isMessageLiteral(lines, i, m.index ?? 0)) continue;
         if (SYSTEM_PHRASE_PATTERN.test(m[0]) || PROMPT_KEY_PATTERN.test(m[0])) {
           results.push({ text: line, lineStart: i + 1, lineEnd: i + 1, kind: 'template-string' });
           break;
