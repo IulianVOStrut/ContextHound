@@ -4,7 +4,7 @@
 #
 #   repos:
 #     - repo: https://github.com/IulianVOStrut/ContextHound
-#       rev: v2.2.1
+#       rev: v2.2.2
 #       hooks:
 #         - id: contexthound
 #           # optional: scan only changed files and set a stricter gate
