@@ -27,6 +27,12 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic V
   (console and JSON), `--verbose` output, SARIF tags and help, JSON/JSONL
   findings, a new `owasp` CSV column, the Markdown details and HTML chips.
 - **`owasp-agentic` preset**, covering every rule mapped to an ASI category.
+- **Pull request comments in the Action.** `comment: true` keeps a single
+  summary comment on the pull request up to date (score, counts per severity
+  and findings linked to the head commit), and pairs with `diff` to show only
+  what the pull request changed. Untrusted values are rendered as code, only
+  the workflow's own comment is ever edited, and fork pull requests get a
+  warning instead of a failure. `buildPrComment` is exported for library use.
 - **More config locations and `extends`.** Config is also read from
   `.contexthoundrc` and from a `"contexthound"` section in `package.json`.
   `extends` builds on `contexthound:recommended`, `contexthound:strict`,

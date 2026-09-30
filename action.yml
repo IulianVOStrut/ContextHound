@@ -6,10 +6,11 @@ branding:
   color: 'orange'
 
 # Usage:
-#   - uses: actions/checkout@v6
+#   - uses: actions/checkout@v7
 #   - uses: IulianVOStrut/ContextHound@v2
 #     with:
 #       fail-on: high
+#       comment: true   # needs pull-requests: write
 #
 # Every input reaches the shell through env: and is validated, never
 # interpolated into a script, so callers can safely pass values derived from
@@ -60,6 +61,14 @@ inputs:
     description: 'Set up this Node.js version first. Empty uses the Node.js already on the runner (20 or later required).'
     required: false
     default: ''
+  comment:
+    description: 'On pull requests, post a summary comment and update it on every run (needs pull-requests: write). Fork pull requests get a warning instead.'
+    required: false
+    default: 'false'
+  github-token:
+    description: 'Token used to post the pull request comment.'
+    required: false
+    default: ${{ github.token }}
 
 outputs:
   score:
@@ -98,6 +107,7 @@ runs:
         prefix="$RUNNER_TEMP/contexthound-$VERSION"
         npm install --prefix "$prefix" --no-audit --no-fund --ignore-scripts --no-save "context-hound@$VERSION"
         echo "bin=$prefix/node_modules/.bin/hound" >> "$GITHUB_OUTPUT"
+        echo "pkg=$prefix" >> "$GITHUB_OUTPUT"
 
     - name: Run ContextHound scan
       id: scan
@@ -112,6 +122,7 @@ runs:
         DIFF_REF: ${{ inputs.diff }}
         PRESET: ${{ inputs.preset }}
         SARIF_OUT: ${{ inputs.sarif-out }}
+        COMMENT: ${{ inputs.comment }}
       run: |
         set -uo pipefail
         fail() { echo "::error::$1"; exit 1; }
@@ -122,6 +133,7 @@ runs:
         [[ -z "$PRESET" || "$PRESET" =~ ^[a-z0-9,-]+$ ]] || fail "preset must be a comma-separated list of preset names"
         [[ -z "$DIFF_REF" || "$DIFF_REF" != -* ]] || fail "diff must be a git ref, not an option"
         [[ -n "$SARIF_OUT" ]] || fail "sarif-out must not be empty"
+        [[ "$COMMENT" =~ ^(true|false)$ ]] || fail "comment must be true or false"
 
         base="$RUNNER_TEMP/contexthound-results"
         args=(scan --dir "$SCAN_DIR" --format console,sarif,json --out "$base")
@@ -141,6 +153,7 @@ runs:
           echo "sarif-file=$SARIF_OUT" >> "$GITHUB_OUTPUT"
         fi
         if [[ -f "$base.json" ]]; then
+          echo "json-file=$base.json" >> "$GITHUB_OUTPUT"
           node -e '
             const r = require(process.argv[1]);
             const out = [`score=${r.repoScore}`, `findings=${r.allFindings.length}`, `passed=${r.passed}`];
@@ -148,6 +161,17 @@ runs:
           ' "$base.json"
         fi
         exit "$code"
+
+    - name: Comment on the pull request
+      if: always() && inputs.comment == 'true' && steps.scan.outputs.json-file != '' && (github.event_name == 'pull_request' || github.event_name == 'pull_request_target')
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        HOUND_PKG: ${{ steps.install.outputs.pkg }}
+        HOUND_RESULTS: ${{ steps.scan.outputs.json-file }}
+        HOUND_DIFF_REF: ${{ inputs.diff }}
+        SCRIPT: ${{ github.action_path }}/scripts/action-pr-comment.js
+      run: node "$SCRIPT"
 
     - name: Upload SARIF to GitHub Code Scanning
       if: always() && inputs.upload-sarif == 'true' && steps.scan.outputs.sarif-file != ''

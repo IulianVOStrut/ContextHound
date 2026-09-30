@@ -216,8 +216,30 @@ Findings appear in your repository's **Security > Code scanning** tab and as ann
 | `sarif-out` | `results.sarif` | Where to write the SARIF report |
 | `upload-sarif` | `true` | Upload the report to Code Scanning |
 | `node-version` | | Set up this Node.js version first (default: use the runner's Node.js) |
+| `comment` | `false` | On pull requests, post a summary comment and update it on later runs (needs `pull-requests: write`) |
+| `github-token` | `github.token` | Token used for the pull request comment |
 
 Outputs: `score`, `findings`, `passed` and `sarif-file`, for use in later steps.
+
+**Pull request comments.** With `comment: true` the Action keeps one ContextHound comment on the pull request up to date: pass or fail, score, counts per severity and a table of findings linked to the exact lines of the head commit. Combine it with `diff` so the comment lists only what the pull request changed:
+
+```yaml
+    permissions:
+      contents: read
+      security-events: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: IulianVOStrut/ContextHound@v2
+        with:
+          diff: origin/${{ github.base_ref }}
+          comment: true
+          fail-on: high
+```
+
+Scanned content (paths, evidence) is rendered as code, so a malicious pull request cannot inject links, HTML or @mentions into the comment. Only comments posted by `github-actions[bot]` are ever edited. Pull requests from forks get a read-only token, so there the Action logs a warning instead of commenting.
 
 For stricter supply-chain hygiene, pin the Action to a release commit SHA instead of `@v2`.
 

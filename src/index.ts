@@ -18,7 +18,7 @@ export { validateConfigObject, buildJsonSchema, OUTPUT_FORMATS } from './config/
 export { PRESETS, resolvePresets } from './config/presets.js';
 
 // Rules
-export { allRules } from './rules/index.js';
+export { allRules, OWASP_CATEGORIES, owaspLabel } from './rules/index.js';
 export type { Rule, RuleMatch } from './rules/index.js';
 
 // Report formatters (pure: they return strings and write nothing)
@@ -30,6 +30,8 @@ export { buildHtmlReport } from './report/html.js';
 export { buildCsvReport } from './report/csv.js';
 export { buildJunitReport } from './report/junit.js';
 export { buildGithubAnnotationsReport, buildStepSummary } from './report/githubAnnotations.js';
+export { buildPrComment, PR_COMMENT_MARKER } from './report/prComment.js';
+export type { PrCommentOptions } from './report/prComment.js';
 
 export type {
   AuditConfig, Finding, FileResult, ScanResult, ScanFailure, SkippedFile, UnusedSuppression,
