@@ -259,7 +259,7 @@ For stricter supply-chain hygiene, pin the Action to a release commit SHA instea
         with:
           node-version: '22'
 
-      - run: npm install -g context-hound@2.2.1
+      - run: npm install -g context-hound@2.2.2
 
       - run: hound scan --format console,sarif,github-annotations --out results
 
@@ -437,7 +437,7 @@ ContextHound ships a [pre-commit](https://pre-commit.com) hook. Add it to your `
 ```yaml
 repos:
   - repo: https://github.com/IulianVOStrut/ContextHound
-    rev: v2.2.1
+    rev: v2.2.2
     hooks:
       - id: contexthound
         # optional: scan only changed files and fail on high-severity findings:
@@ -883,7 +883,7 @@ The benchmark scans two fixture directories:
 | `benchmarks/safe/` | 19 realistic benign files: README, changelog and security docs, a news dataset, a system prompt that quotes attacks in order to refuse them, standard chat and RAG code with delimiters, Python logging, PyTorch `model.eval()`, configs. Expect **0** findings |
 | `benchmarks/unsafe/` | 15 files with real vulnerabilities, each labelled with the rule that must fire |
 
-**Results on 2.2.1:**
+**Results on 2.2.2:**
 
 ```
 File-level FP rate:   0.0%   (0 / 19 safe files produced findings)

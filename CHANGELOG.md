@@ -7,6 +7,10 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic V
 
 ## [Unreleased]
 
+---
+
+## [2.2.2] - 2026-09-30
+
 ### Changed
 - Rule titles, remediation text and `hound explain` output use colons and commas instead of dashes, e.g. `Plan injection: user input interpolated into agent planning prompt`. Rule IDs and finding fingerprints are unchanged, so baselines keep matching.
 
