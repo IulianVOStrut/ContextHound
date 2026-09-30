@@ -9,6 +9,76 @@ Follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic V
 
 ---
 
+## [2.2.0] - 2026-09-30
+
+### Added
+
+- **Files git ignores are skipped by default.** Inside a repository git
+  decides (nested `.gitignore` files, `.git/info/exclude`, global excludes),
+  so tracked files are still scanned; outside a repository the scan
+  directory's `.gitignore` is used. `--no-gitignore` or `"gitignore": false`
+  scans them too.
+- **CI workflow** running the tests on Node.js 20, 22 and 24 on Linux and
+  Windows, plus lint, the benchmark, a production dependency audit and an
+  `npm pack` dry run.
+- **Richer SARIF.** Every rule is listed with help text, remediation and a
+  `security-severity` score, so GitHub code scanning labels alerts Critical,
+  High, Medium or Low; results carry `ruleIndex`, severity and confidence;
+  skipped files and the suppression count are reported as tool notifications.
+- **OWASP IDs on every rule.** Each rule maps to the OWASP Top 10 for LLM
+  Applications (2025, `LLM01` to `LLM10`) and/or the OWASP Top 10 for Agentic
+  Applications (2026, `ASI01` to `ASI10`). The IDs appear in `hound explain`
+  (console and JSON), `--verbose` output, SARIF tags and help, JSON/JSONL
+  findings, a new `owasp` CSV column, the Markdown details and HTML chips.
+- **`owasp-agentic` preset**, covering every rule mapped to an ASI category.
+- **Pull request comments in the Action.** `comment: true` keeps a single
+  summary comment on the pull request up to date (score, counts per severity
+  and findings linked to the head commit), and pairs with `diff` to show only
+  what the pull request changed. Untrusted values are rendered as code, only
+  the workflow's own comment is ever edited, and fork pull requests get a
+  warning instead of a failure. `buildPrComment` is exported for library use.
+- **`hound fix`** removes the hidden Unicode characters reported by ENC-002
+  to ENC-005 (zero-width characters, bidi controls, Unicode tag characters
+  and variation-selector runs). It previews the changes with the characters
+  shown as `<U+XXXX>` markers and only writes with `--write`; suppressed
+  findings are left alone. Other rules are not auto-fixed because a
+  mechanical rewrite (for example of `shell: true` or `eval`) could change
+  what the code does. `hound explain` notes which rules have a fix.
+- **More config locations and `extends`.** Config is also read from
+  `.contexthoundrc` and from a `"contexthound"` section in `package.json`.
+  `extends` builds on `contexthound:recommended`, `contexthound:strict`,
+  relative JSON files or JSON files in npm packages, with cycle detection
+  and validation of every file in the chain. JavaScript configs are
+  deliberately not supported, since they would run code from the scanned
+  repository.
+
+### Changed
+
+- **`owasp-llm-top10` preset** is built from the new mapping instead of a
+  fixed list of rule families, so it now also includes mapped CMD, ENC, AGT,
+  MCP, SKL and PST rules.
+- **CSV reports** have a trailing `owasp` column (IDs separated by `;`).
+- **`.houndignore` uses `.gitignore` syntax.** Directory patterns such as
+  `secrets/` now work, patterns without a slash match at any depth and `!`
+  re-includes a file. Existing glob patterns keep working.
+
+### Fixed
+
+- **Error and log messages are no longer read as prompts.** A template
+  literal passed to an `Error` constructor, `throw` or a logger (for example
+  `` throw new Error(`x must be a .json file`) ``, also when the literal
+  starts on the line after the call) triggered prompt rules such as INJ-003
+  and TOOL-003.
+- **OUT-001 only fires in files that call a model.** `JSON.parse(text)` in
+  ordinary code, such as a config loader, was reported as unvalidated LLM
+  output.
+- **Windows:** `--diff` matched no files, watch mode ignored newly added
+  files, and scanning a subdirectory lost the repository-relative path
+  prefix. Paths from git, fast-glob and Node are now compared in a
+  normalised form.
+
+---
+
 ## [2.1.1] - 2026-09-29
 
 No changes to scanning, rules or output.

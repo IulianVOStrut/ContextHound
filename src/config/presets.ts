@@ -4,6 +4,13 @@
 // by `includeRules`). It lets teams enable a curated subset of rules without
 // listing every ID — e.g. `hound scan --preset mcp`.
 
+import { OWASP_BY_RULE } from '../rules/owasp.js';
+
+/** Built-in rule IDs mapped to any OWASP category with this prefix. */
+function rulesForOwasp(prefix: 'LLM' | 'ASI'): string[] {
+  return Object.keys(OWASP_BY_RULE).filter(id => OWASP_BY_RULE[id].some(o => o.startsWith(prefix)));
+}
+
 export interface Preset {
   description: string;
   /** Rule-ID patterns, e.g. ['INJ-*', 'RAG-*']. */
@@ -12,8 +19,12 @@ export interface Preset {
 
 export const PRESETS: Record<string, Preset> = {
   'owasp-llm-top10': {
-    description: 'Rules mapping to the OWASP Top 10 for LLM Applications',
-    rules: ['INJ-*', 'JBK-*', 'EXF-*', 'OUT-*', 'RAG-*', 'TOOL-*', 'SCH-*', 'DOS-*', 'VIS-*'],
+    description: 'Rules mapped to the OWASP Top 10 for LLM Applications (2025)',
+    rules: rulesForOwasp('LLM'),
+  },
+  'owasp-agentic': {
+    description: 'Rules mapped to the OWASP Top 10 for Agentic Applications (2026)',
+    rules: rulesForOwasp('ASI'),
   },
   injection: {
     description: 'Prompt-injection and encoding-obfuscation rules',

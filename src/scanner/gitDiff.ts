@@ -1,5 +1,6 @@
 import { execFileSync } from 'child_process';
 import path from 'path';
+import { pathKey, realpathNative } from './paths.js';
 
 /**
  * Resolve the `--diff [ref]` option into a concrete git ref.
@@ -13,7 +14,7 @@ export function resolveDiffRef(diff: string | boolean | undefined): string | nul
 }
 
 /**
- * Absolute paths of files changed on this branch: everything that differs
+ * Path keys (see `pathKey`) of files changed on this branch: everything that differs
  * between the merge base of `ref` and HEAD and the working tree (committed,
  * staged and unstaged), plus untracked-but-not-ignored files. Diffing against
  * the merge base rather than `ref` itself keeps files that only changed on
@@ -37,7 +38,11 @@ export function getChangedFiles(cwd: string, ref: string): Set<string> | null {
     const tracked = run(['diff', '--name-only', '-z', base, '--']);
     const untracked = run(['ls-files', '--others', '--exclude-standard', '-z']);
     const rels = [...tracked.split('\0'), ...untracked.split('\0')].filter(Boolean);
-    return new Set(rels.map(r => path.resolve(root, r)));
+    // git reports the resolved repository root; rebase each path onto `cwd`
+    // as the caller spelled it so it compares equal to discovered files.
+    const rootReal = realpathNative(root);
+    const cwdReal = realpathNative(cwd);
+    return new Set(rels.map(r => pathKey(path.resolve(cwd, path.relative(cwdReal, path.join(rootReal, r))))));
   } catch {
     return null;
   }

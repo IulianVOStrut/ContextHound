@@ -145,3 +145,108 @@ describe('JSON Schema', () => {
     expect(validateConfigObject(repo)).toEqual([]);
   });
 });
+
+describe('config sources and extends', () => {
+  let dir: string;
+  const write = (rel: string, value: unknown) => {
+    const file = path.join(dir, rel);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, typeof value === 'string' ? value : JSON.stringify(value));
+    return file;
+  };
+  beforeEach(() => { dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hound-extends-')); });
+  afterEach(() => { fs.rmSync(dir, { recursive: true, force: true }); });
+
+  it('reads the "contexthound" section of package.json', () => {
+    write('package.json', { name: 'x', contexthound: { threshold: 40, failOn: 'high' } });
+    const c = loadConfig(undefined, dir);
+    expect(c.threshold).toBe(40);
+    expect(c.failOn).toBe('high');
+  });
+
+  it('ignores a package.json without a "contexthound" section', () => {
+    write('package.json', { name: 'x', version: '1.0.0' });
+    expect(loadConfig(undefined, dir).threshold).toBe(60);
+  });
+
+  it('validates the package.json section', () => {
+    write('package.json', { name: 'x', contexthound: { treshold: 40 } });
+    expect(() => loadConfig(undefined, dir)).toThrow(/package\.json \("contexthound"\)[\s\S]*Did you mean "threshold"/);
+  });
+
+  it('reads .contexthoundrc without an extension', () => {
+    write('.contexthoundrc', { threshold: 30 });
+    expect(loadConfig(undefined, dir).threshold).toBe(30);
+  });
+
+  it('prefers .contexthoundrc.json over .contexthoundrc and package.json', () => {
+    write('.contexthoundrc.json', { threshold: 10 });
+    write('.contexthoundrc', { threshold: 20 });
+    write('package.json', { contexthound: { threshold: 30 } });
+    expect(loadConfig(undefined, dir).threshold).toBe(10);
+  });
+
+  it('rejects an explicit package.json without a section', () => {
+    const file = write('package.json', { name: 'x' });
+    expect(() => loadConfig(file, dir)).toThrow(/has no "contexthound" section/);
+  });
+
+  it('applies a built-in shared config, with local keys taking precedence', () => {
+    write('.contexthoundrc.json', { extends: 'contexthound:recommended', failOn: 'critical' });
+    const c = loadConfig(undefined, dir);
+    expect(c.failOn).toBe('critical');
+    expect(c.minConfidence).toBe('medium');
+  });
+
+  it('merges several extends in order, then the file itself', () => {
+    write('.contexthoundrc.json', { extends: ['contexthound:strict', './team.json'], threshold: 70 });
+    write('team.json', { failOn: 'high', excludeRules: ['DOS-*'] });
+    const c = loadConfig(undefined, dir);
+    expect(c.failOn).toBe('high');            // team.json overrides strict
+    expect(c.failFileThreshold).toBe(60);     // from strict
+    expect(c.excludeRules).toEqual(['DOS-*']);
+    expect(c.threshold).toBe(70);
+  });
+
+  it('resolves nested extends relative to the extending file', () => {
+    write('.contexthoundrc.json', { extends: './configs/a.json' });
+    write('configs/a.json', { extends: './b.json', threshold: 45 });
+    write('configs/b.json', { failOn: 'medium', threshold: 99 });
+    const c = loadConfig(undefined, dir);
+    expect(c.threshold).toBe(45);
+    expect(c.failOn).toBe('medium');
+  });
+
+  it('loads a .json config from an npm package', () => {
+    write('node_modules/@acme/hound-config/package.json', { name: '@acme/hound-config', version: '1.0.0' });
+    write('node_modules/@acme/hound-config/contexthound.json', { minConfidence: 'high' });
+    write('.contexthoundrc.json', { extends: '@acme/hound-config/contexthound.json' });
+    expect(loadConfig(undefined, dir).minConfidence).toBe('high');
+  });
+
+  it('refuses configs that would run code', () => {
+    write('evil.js', 'require("child_process").execSync("touch pwned")');
+    write('.contexthoundrc.json', { extends: './evil.js' });
+    expect(() => loadConfig(undefined, dir)).toThrow(/must be a \.json file/);
+    expect(fs.existsSync(path.join(dir, 'pwned'))).toBe(false);
+  });
+
+  it('reports unknown shared configs, missing files and cycles', () => {
+    write('.contexthoundrc.json', { extends: 'contexthound:lenient' });
+    expect(() => loadConfig(undefined, dir)).toThrow(/unknown shared config "contexthound:lenient" in .*; available: contexthound:recommended, contexthound:strict/);
+
+    write('.contexthoundrc.json', { extends: './missing.json' });
+    expect(() => loadConfig(undefined, dir)).toThrow(/config file not found/);
+
+    write('.contexthoundrc.json', { extends: './a.json' });
+    write('a.json', { extends: './b.json' });
+    write('b.json', { extends: './a.json' });
+    expect(() => loadConfig(undefined, dir)).toThrow(/circular "extends"/);
+  });
+
+  it('validates extended files and names them in the error', () => {
+    write('.contexthoundrc.json', { extends: './team.json' });
+    write('team.json', { failOn: 'sometimes' });
+    expect(() => loadConfig(undefined, dir)).toThrow(/invalid config in .*team\.json/);
+  });
+});

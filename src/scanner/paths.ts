@@ -29,8 +29,22 @@ function gitToplevel(dir: string): string | null {
   }
 }
 
-function realpath(p: string): string {
-  try { return fs.realpathSync(p); } catch { return p; }
+/**
+ * Resolve symlinks and, on Windows, 8.3 short names such as PROGRA~1, which
+ * git never reports. Falls back to the input when the path does not exist.
+ */
+export function realpathNative(p: string): string {
+  try { return fs.realpathSync.native(p); } catch { return p; }
+}
+
+/**
+ * Key for comparing file paths from different sources (fast-glob returns
+ * forward slashes on Windows, path.resolve returns backslashes, and Windows
+ * paths are case-insensitive).
+ */
+export function pathKey(p: string): string {
+  const resolved = path.resolve(p);
+  return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
 }
 
 export function createPathMapper(scanDir: string): PathMapper {
@@ -41,7 +55,7 @@ export function createPathMapper(scanDir: string): PathMapper {
   let root = scanAbs;
   const top = gitToplevel(scanAbs);
   if (top) {
-    const rel = path.relative(realpath(top), realpath(scanAbs));
+    const rel = path.relative(realpathNative(top), realpathNative(scanAbs));
     if (!rel.startsWith('..') && !path.isAbsolute(rel)) {
       prefix = rel;
       root = top;

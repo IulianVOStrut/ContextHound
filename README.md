@@ -55,6 +55,7 @@ It fits into your existing workflow as a CLI command, an `npm` script, or a GitH
 | | |
 |---|---|
 | **95 security rules** | Across 14 categories: injection, exfiltration, jailbreak, unsafe tool use, command injection, RAG poisoning, encoding, output handling, multimodal, skills marketplace, agentic, MCP, supply chain, DoS |
+| **OWASP mapping** | Every rule carries OWASP Top 10 for LLM Applications (2025) and Agentic Applications (2026) IDs, shown in `hound explain`, `--verbose`, SARIF tags and all reports |
 | **Numeric risk score (0-100)** | Normalized repo-level score with low, medium, high and critical thresholds |
 | **Mitigation detection** | Explicit safety language in your prompts reduces your score |
 | **7 output formats** | Console, JSON, SARIF, GitHub Annotations, Markdown, JSONL streaming, and interactive HTML |
@@ -144,6 +145,13 @@ hound scan --concurrency 16
 # Disable incremental cache for a clean run
 hound scan --no-cache
 
+# Also scan files that git ignores (skipped by default)
+hound scan --no-gitignore
+
+# Preview, then remove, hidden Unicode characters flagged by ENC-002 to ENC-005
+hound fix
+hound fix --write
+
 # Baseline mode — only report findings new since the last saved scan
 hound scan --format json --out baseline          # save a baseline
 hound scan --baseline baseline.json             # compare future scans against it
@@ -212,8 +220,30 @@ Findings appear in your repository's **Security > Code scanning** tab and as ann
 | `sarif-out` | `results.sarif` | Where to write the SARIF report |
 | `upload-sarif` | `true` | Upload the report to Code Scanning |
 | `node-version` | | Set up this Node.js version first (default: use the runner's Node.js) |
+| `comment` | `false` | On pull requests, post a summary comment and update it on later runs (needs `pull-requests: write`) |
+| `github-token` | `github.token` | Token used for the pull request comment |
 
 Outputs: `score`, `findings`, `passed` and `sarif-file`, for use in later steps.
+
+**Pull request comments.** With `comment: true` the Action keeps one ContextHound comment on the pull request up to date: pass or fail, score, counts per severity and a table of findings linked to the exact lines of the head commit. Combine it with `diff` so the comment lists only what the pull request changed:
+
+```yaml
+    permissions:
+      contents: read
+      security-events: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: IulianVOStrut/ContextHound@v2
+        with:
+          diff: origin/${{ github.base_ref }}
+          comment: true
+          fail-on: high
+```
+
+Scanned content (paths, evidence) is rendered as code, so a malicious pull request cannot inject links, HTML or @mentions into the comment. Only comments posted by `github-actions[bot]` are ever edited. Pull requests from forks get a read-only token, so there the Action logs a warning instead of commenting.
 
 For stricter supply-chain hygiene, pin the Action to a release commit SHA instead of `@v2`.
 
@@ -227,7 +257,7 @@ For stricter supply-chain hygiene, pin the Action to a release commit SHA instea
         with:
           node-version: '22'
 
-      - run: npm install -g context-hound@2.1.1
+      - run: npm install -g context-hound@2.2.0
 
       - run: hound scan --format console,sarif,github-annotations --out results
 
@@ -291,10 +321,33 @@ Run `hound init` to scaffold a `.contexthoundrc.json`, or create one manually:
 | `failFileThreshold` | unset | Fail (exit code 2) if any single file scores at or above this value |
 | `concurrency` | `8` | Max files processed in parallel |
 | `cache` | `true` | Enable incremental scan cache (`.hound-cache.json`); set `false` or use `--no-cache` to disable |
+| `gitignore` | `true` | Skip files git ignores (nested `.gitignore` files, `.git/info/exclude`, global excludes); tracked files are always scanned. Set `false` or use `--no-gitignore` to scan them |
 | `plugins` | `[]` | Paths to local `.js` rule plugins; each must export a `Rule` or `Rule[]` |
 | `baseline` | unset | Path to a previous JSON report; only findings absent from the baseline are reported |
 
 The config file is validated on every run. Unknown options (with a "did you mean" suggestion), wrong types, out-of-range numbers, invalid JSON and a missing `--config` path are all errors (exit code 1) rather than being silently ignored, because an ignored option can quietly disable a CI gate. The `$schema` line gives editors autocomplete and inline validation; keys starting with `_` are allowed for comments.
+
+### Config file locations and `extends`
+
+Without `--config` or `HOUND_CONFIG`, ContextHound uses the first of these it finds in the scan directory: `.contexthoundrc.json`, `.contexthoundrc` (JSON), or a `"contexthound"` section in `package.json`.
+
+`extends` builds on other configs. Entries are applied in order, then the file's own keys; arrays replace rather than merge.
+
+```json
+{
+  "extends": ["contexthound:recommended", "./config/hound-team.json"],
+  "excludeRules": ["DOS-*"]
+}
+```
+
+| Value | Meaning |
+|-------|---------|
+| `contexthound:recommended` | `failOn: "high"`, `minConfidence: "medium"` |
+| `contexthound:strict` | `failOn: "medium"`, `failFileThreshold: 60` |
+| `./path/file.json` | A JSON file, relative to the config that extends it |
+| `@scope/pkg/contexthound.json` | A JSON file inside an installed npm package |
+
+Only JSON configs are supported, on purpose: a JavaScript config would run code from the repository being scanned, which in CI can be an untrusted pull request.
 
 ### Prompt files and documentation
 
@@ -317,9 +370,11 @@ All key settings can be overridden at runtime without editing the config file:
 | `HOUND_VERBOSE` | `verbose` (truthy: `1`, `true`, `yes`) |
 | `HOUND_CONFIG` | path to config file |
 
-### `.houndignore`
+### `.houndignore` and `.gitignore`
 
-Place a `.houndignore` file in your project root to add exclusion patterns without editing `.contexthoundrc.json`. Follows the same glob syntax; lines starting with `#` are comments.
+Files that git ignores are skipped by default. Inside a repository ContextHound asks git, so nested `.gitignore` files, `.git/info/exclude` and your global excludes all apply, and tracked files are always scanned even if they match an ignore pattern. Outside a repository, the scan directory's own `.gitignore` is used. Pass `--no-gitignore` (or set `"gitignore": false`) to scan ignored files too.
+
+A `.houndignore` file in the scan directory adds exclusions without editing `.contexthoundrc.json`. It uses `.gitignore` syntax: `secrets/` skips a directory, `*.test.ts` matches at any depth, `!keep.test.ts` re-includes a file, and lines starting with `#` are comments. It applies even with `--no-gitignore`.
 
 ### Inline suppressions
 
@@ -356,13 +411,15 @@ Enable a curated subset of rules with `--preset` instead of listing IDs. Presets
 
 ```bash
 hound scan --preset owasp-llm-top10
+hound scan --preset owasp-agentic
 hound scan --preset mcp,agentic
 hound scan --list-presets          # show all presets and their rule patterns
 ```
 
 | Preset | Rules |
 |--------|-------|
-| `owasp-llm-top10` | INJ, JBK, EXF, OUT, RAG, TOOL, SCH, DOS, VIS |
+| `owasp-llm-top10` | Every rule mapped to an OWASP LLM Top 10 (2025) category (LLM01 to LLM10) |
+| `owasp-agentic` | Every rule mapped to an OWASP Agentic Top 10 (2026) category (ASI01 to ASI10) |
 | `injection` | INJ, RAG, ENC |
 | `jailbreak` | JBK |
 | `exfiltration` | EXF |
@@ -378,7 +435,7 @@ ContextHound ships a [pre-commit](https://pre-commit.com) hook. Add it to your `
 ```yaml
 repos:
   - repo: https://github.com/IulianVOStrut/ContextHound
-    rev: v2.1.1
+    rev: v2.2.0
     hooks:
       - id: contexthound
         # optional — scan only changed files and fail on high-severity findings:

@@ -14,6 +14,8 @@ export interface Rule {
   confidence: Confidence;
   category: 'injection' | 'exfiltration' | 'jailbreak' | 'unsafe-tools' | 'multimodal' | 'skills' | 'agentic' | 'mcp' | 'supply-chain' | 'dos' | 'persistence';
   mitre?: string;
+  /** OWASP LLM Top 10 (LLM01-LLM10) and Agentic Top 10 (ASI01-ASI10) IDs. */
+  owasp?: string[];
   remediation: string;
   /**
    * Also run on general documentation (README, changelogs, datasets), not just
@@ -21,8 +23,22 @@ export interface Rule {
    * hidden characters, real secret values, hidden instructions.
    */
   docs?: boolean;
+  /**
+   * Safe automatic fix for one reported line: returns the corrected line.
+   * Only for changes that cannot alter program behaviour, such as removing
+   * invisible characters. Used by `hound fix`.
+   */
+  fix?(line: string): string;
   check(prompt: ExtractedPrompt, filePath: string): RuleMatch[];
 }
+
+/**
+ * Signs that a source file talks to an LLM: provider SDKs, chat completion
+ * calls or prompt-building. Rules about handling model output use it so they
+ * do not fire on ordinary code (a config loader calling JSON.parse(text)).
+ */
+export const LLM_CONTEXT =
+  /(?:openai|anthropic|gemini|mistral|cohere|ollama|bedrock|langchain|llamaindex|\.chat\.completions|\.messages\.create|\.responses\.create|generateText|streamText|generateObject|createCompletion|chatCompletion|\bcompletion\b|\bllm\b|systemPrompt|messages\s*(?:\??\.)?\s*push)/i;
 
 /** The first line of `prompt` matching `pattern`, as a RuleMatch, or null. */
 export function firstMatchingLine(prompt: ExtractedPrompt, pattern: RegExp): RuleMatch | null {
@@ -70,5 +86,6 @@ export function ruleToFinding(rule: Rule, match: RuleMatch, filePath: string): F
     remediation: rule.remediation,
     riskPoints: calcRiskPoints(rule.severity, rule.confidence),
     ...(rule.mitre !== undefined && { mitre: rule.mitre }),
+    ...(rule.owasp?.length && { owasp: rule.owasp }),
   };
 }

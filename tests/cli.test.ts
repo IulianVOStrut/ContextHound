@@ -313,6 +313,7 @@ describe('explain command', () => {
     expect(r.stdout).toMatch(/INJ-001/);
     expect(r.stdout).toMatch(/Remediation:/);
     expect(r.stdout).toMatch(/hound-disable-next-line INJ-001/);
+    expect(r.stdout).toMatch(/OWASP: +LLM01 Prompt Injection/);
   });
 
   it('is case-insensitive', () => {
@@ -334,6 +335,10 @@ describe('explain command', () => {
     const parsed = JSON.parse(r.stdout);
     expect(parsed[0].id).toBe('RAG-007');
     expect(parsed[0]).toHaveProperty('remediation');
+    expect(parsed[0].owasp).toEqual([
+      { id: 'LLM01', name: 'Prompt Injection' },
+      { id: 'LLM08', name: 'Vector and Embedding Weaknesses' },
+    ]);
   });
 
   it('exits non-zero for an unknown rule', () => {

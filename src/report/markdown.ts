@@ -1,5 +1,6 @@
 import type { ScanResult, Severity } from '../types.js';
 import { escapeHtml, escapeMarkdownCell, markdownCode } from './sanitize.js';
+import { owaspLabel } from '../rules/owasp.js';
 
 export function buildMarkdownReport(result: ScanResult): string {
   const passed = result.passed;
@@ -54,6 +55,10 @@ export function buildMarkdownReport(result: ScanResult): string {
         lines.push('');
         if (f.mitre) {
           lines.push(`**MITRE ATT&CK:** [${f.mitre}](https://attack.mitre.org/techniques/${f.mitre.replace('.', '/')})`);
+          lines.push('');
+        }
+        if (f.owasp?.length) {
+          lines.push(`**OWASP:** ${f.owasp.map(id => escapeHtml(owaspLabel(id))).join(', ')}`);
           lines.push('');
         }
         lines.push(`**Remediation:** ${f.remediation}`);

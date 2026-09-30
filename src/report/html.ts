@@ -60,6 +60,7 @@ function renderRows(findings){
           '<span class="chip">Risk points: '+escHtml(f.riskPoints)+'</span>'+
           '<span class="chip">Line '+escHtml(f.lineStart)+(f.lineEnd !== f.lineStart ? '–'+escHtml(f.lineEnd) : '')+'</span>'+
           (f.mitre ? '<a class="chip" href="https://attack.mitre.org/techniques/'+escHtml(f.mitre.replace('.','/'))+'\" target="_blank" rel="noopener noreferrer" style="color:var(--orange);border-color:#f9731640">MITRE '+escHtml(f.mitre)+'</a>' : '')+
+          (f.owasp || []).map(function(o){ return '<span class="chip">OWASP '+escHtml(o)+'</span>'; }).join('')+
         '</div>'+
         '<div class="ev-label">Evidence</div>'+
         '<pre>'+escHtml(f.evidence)+'</pre>'+
@@ -90,7 +91,8 @@ function applyFilters(){
       if(!f.id.toLowerCase().includes(q) &&
          !f.title.toLowerCase().includes(q) &&
          !f.file.toLowerCase().includes(q) &&
-         !(f.mitre && f.mitre.toLowerCase().includes(q))) return false;
+         !(f.mitre && f.mitre.toLowerCase().includes(q)) &&
+         !(f.owasp || []).some(function(o){ return o.toLowerCase().includes(q); })) return false;
     }
     return true;
   });
@@ -285,7 +287,7 @@ tbody td{padding:10px 14px;vertical-align:middle}
 
 <!-- Controls -->
 <div class="controls">
-  <input class="search-box" type="text" id="search" placeholder="Search rules, files, MITRE IDs…">
+  <input class="search-box" type="text" id="search" placeholder="Search rules, files, MITRE or OWASP IDs…">
   <div class="filter-group" id="sev-filters">
     <button class="fbtn active" data-sev="all">All</button>
     <button class="fbtn" data-sev="critical">Critical</button>

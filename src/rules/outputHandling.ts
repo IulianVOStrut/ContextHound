@@ -1,5 +1,6 @@
 import path from 'path';
 import type { Rule, RuleMatch } from './types.js';
+import { LLM_CONTEXT } from './types.js';
 import type { ExtractedPrompt } from '../scanner/extractor.js';
 
 // ── Code-execution sinks fed with model output (OUT-003, OUT-004) ────────────
@@ -45,6 +46,8 @@ export const outputHandlingRules: Rule[] = [
       if (prompt.kind !== 'code-block') return [];
 
       const text = prompt.text;
+      // Model output only exists in files that call a model.
+      if (!LLM_CONTEXT.test(text)) return [];
 
       // JSON.parse / json.loads called on a variable whose name suggests LLM output
       const llmOutputNames =

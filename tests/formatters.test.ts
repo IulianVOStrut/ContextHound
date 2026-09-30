@@ -1,5 +1,6 @@
 import { buildJsonReport } from '../src/report/json';
 import { buildSarifReport } from '../src/report/sarif';
+import { allRules } from '../src/rules/index';
 import { buildGithubAnnotationsReport } from '../src/report/githubAnnotations';
 import { buildMarkdownReport } from '../src/report/markdown';
 import { buildJsonlReport } from '../src/report/jsonl';
@@ -100,6 +101,52 @@ describe('SARIF formatter', () => {
     });
     const sarif = JSON.parse(buildSarifReport(result));
     expect(sarif.runs[0].results[0].level).toBe('warning');
+  });
+
+  it('lists every built-in rule with help and GitHub security-severity', () => {
+    const sarif = JSON.parse(buildSarifReport(makeScanResult()));
+    const rules = sarif.runs[0].tool.driver.rules as { id: string; help: { markdown: string }; defaultConfiguration: { level: string }; properties: Record<string, unknown> }[];
+    expect(rules.length).toBe(allRules.length);
+    const pst = rules.find(r => r.id === 'PST-001')!;
+    expect(pst.properties['security-severity']).toBe('9.5');
+    expect(pst.defaultConfiguration.level).toBe('error');
+    expect(pst.properties.tags).toContain('persistence');
+    expect(pst.help.markdown).toContain('hound explain PST-001');
+  });
+
+  it('points each result at its rule with ruleIndex', () => {
+    const sarif = JSON.parse(buildSarifReport(makeScanResult()));
+    const run = sarif.runs[0];
+    const r0 = run.results[0];
+    expect(run.tool.driver.rules[r0.ruleIndex].id).toBe(r0.ruleId);
+  });
+
+  it('adds rules that only appear in findings, such as plugin rules', () => {
+    const plugin = makeFinding({ id: 'ACME-001', title: 'Custom rule', severity: 'medium' });
+    const sarif = JSON.parse(buildSarifReport(makeScanResult({ allFindings: [plugin] })));
+    const run = sarif.runs[0];
+    const rule = run.tool.driver.rules[run.results[0].ruleIndex];
+    expect(rule.id).toBe('ACME-001');
+    expect(rule.properties['security-severity']).toBe('5.5');
+  });
+
+  it('reports skipped files and suppressions as invocation notifications', () => {
+    const sarif = JSON.parse(buildSarifReport(makeScanResult({
+      skippedFiles: [{ file: 'big.txt', size: 2_000_000, reason: 'max-file-size' }],
+      suppressedCount: 3,
+    })));
+    const inv = sarif.runs[0].invocations[0];
+    expect(inv.executionSuccessful).toBe(true);
+    const texts = inv.toolExecutionNotifications.map((n: { message: { text: string } }) => n.message.text);
+    expect(texts.some((t: string) => t.includes('big.txt'))).toBe(true);
+    expect(texts.some((t: string) => t.includes('3 finding(s) suppressed'))).toBe(true);
+  });
+
+  it('tags rules with their OWASP IDs and names them in help', () => {
+    const sarif = JSON.parse(buildSarifReport(makeScanResult()));
+    const rule = sarif.runs[0].tool.driver.rules.find((r: { id: string }) => r.id === 'MCP-001');
+    expect(rule.properties.tags).toEqual(expect.arrayContaining(['owasp:LLM01', 'owasp:ASI01']));
+    expect(rule.help.markdown).toContain('LLM01 Prompt Injection');
   });
 
   it('maps low severity to note', () => {
@@ -339,7 +386,7 @@ describe('CSV formatter', () => {
     const csv = buildCsvReport(result);
     const rows = csv.split('\n');
     expect(rows).toHaveLength(2); // header + 1 finding
-    expect(rows[0]).toBe('rule_id,severity,confidence,file,line_start,line_end,title,evidence,remediation,mitre_technique');
+    expect(rows[0]).toBe('rule_id,severity,confidence,file,line_start,line_end,title,evidence,remediation,mitre_technique,owasp');
   });
 
   it('includes all finding fields in the correct column order', () => {
@@ -459,7 +506,7 @@ describe('JUnit XML formatter', () => {
 describe('MITRE formatter integration', () => {
   const mitreFinding = makeFinding({ id: 'INJ-001', mitre: 'T1190' });
   const subFinding   = makeFinding({ id: 'PST-001', mitre: 'T1053.003' });
-  const noMitre      = makeFinding({ id: 'JBK-002' });
+  const noMitre      = makeFinding({ id: 'TOOL-001' });
 
   function makeTaggedResult(): ScanResult {
     return makeScanResult({
@@ -514,13 +561,13 @@ describe('MITRE formatter integration', () => {
 
   it('SARIF rule without mitre has no helpUri', () => {
     const sarif = JSON.parse(buildSarifReport(makeTaggedResult()));
-    const rule = sarif.runs[0].tool.driver.rules.find((r: { id: string }) => r.id === 'JBK-002');
+    const rule = sarif.runs[0].tool.driver.rules.find((r: { id: string }) => r.id === 'TOOL-001');
     expect(rule.helpUri).toBeUndefined();
   });
 
   it('SARIF rule without mitre does not gain attack: tag', () => {
     const sarif = JSON.parse(buildSarifReport(makeTaggedResult()));
-    const rule = sarif.runs[0].tool.driver.rules.find((r: { id: string }) => r.id === 'JBK-002');
+    const rule = sarif.runs[0].tool.driver.rules.find((r: { id: string }) => r.id === 'TOOL-001');
     const attackTags = (rule.properties.tags as string[]).filter(t => t.startsWith('attack:'));
     expect(attackTags).toHaveLength(0);
   });

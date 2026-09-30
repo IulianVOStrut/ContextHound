@@ -3,12 +3,13 @@ import { Command } from 'commander';
 import fs from 'fs';
 import path from 'path';
 import { loadConfig, ConfigError, parseEnumOption, parseIntegerOption } from './config/loader.js';
+import { computeFixes, applyFixes } from './fix.js';
 import { OUTPUT_FORMATS, FAIL_ON_LEVELS, CONFIDENCE_LEVELS } from './config/schema.js';
 import { runScan } from './scanner/pipeline.js';
 import { discoverFiles } from './scanner/discover.js';
 import { resolveDiffRef } from './scanner/gitDiff.js';
 import { applyBaseline, loadBaseline } from './scanner/baseline.js';
-import { createPathMapper } from './scanner/paths.js';
+import { createPathMapper, pathKey } from './scanner/paths.js';
 import { PRESETS, resolvePresets } from './config/presets.js';
 import { printConsoleReport } from './report/console.js';
 import { buildJsonReport } from './report/json.js';
@@ -20,7 +21,7 @@ import { buildJsonlReport } from './report/jsonl.js';
 import { buildCsvReport } from './report/csv.js';
 import { buildJunitReport } from './report/junit.js';
 import { toTerminalSafe } from './report/sanitize.js';
-import { allRules } from './rules/index.js';
+import { allRules, OWASP_CATEGORIES, owaspLabel } from './rules/index.js';
 import { VERSION } from './version.js';
 import { DEFAULT_MAX_FILE_SIZE, DEFAULT_INCLUDE_GLOBS, DEFAULT_EXCLUDE_GLOBS } from './config/defaults.js';
 import type { AuditConfig, OutputFormat, ScanResult } from './types.js';
@@ -110,6 +111,8 @@ program
         id: r.id, title: r.title, severity: r.severity, confidence: r.confidence,
         category: r.category, mitre: r.mitre ?? null,
         mitreUrl: r.mitre ? mitreUrl(r.mitre) : null,
+        owasp: (r.owasp ?? []).map(id => ({ id, name: OWASP_CATEGORIES[id] ?? null })),
+        autofix: typeof r.fix === 'function',
         categoryDescription: CATEGORY_BLURB[r.category] ?? null,
         remediation: r.remediation,
       })), null, 2));
@@ -127,11 +130,60 @@ program
       if (r.mitre) {
         console.log(`MITRE:       ${r.mitre}  (${mitreUrl(r.mitre)})`);
       }
+      if (r.owasp?.length) {
+        console.log(`OWASP:       ${r.owasp.map(owaspLabel).join(', ')}`);
+      }
       console.log(`Remediation: ${r.remediation}`);
+      if (r.fix) console.log('Autofix:     hound fix --write');
       console.log(`Suppress:    // hound-disable-next-line ${r.id}`);
     }
     console.log('');
     if (matches.length > 1) console.log(`${matches.length} rules matched "${ruleId}".`);
+    process.exit(0);
+  });
+
+// ── fix command ──────────────────────────────────────────────────────────────
+
+program
+  .command('fix')
+  .description('Remove hidden Unicode characters reported by ENC-002 to ENC-005 (preview unless --write)')
+  .option('-d, --dir <path>', 'Directory to scan', '.')
+  .option('-c, --config <path>', 'Path to .contexthoundrc.json config file')
+  .option('--write', 'Apply the fixes instead of previewing them')
+  .action(async (opts: { dir: string; config?: string; write?: boolean }) => {
+    const cwd = path.resolve(opts.dir);
+    let config: AuditConfig;
+    try {
+      config = buildConfig({ config: opts.config }, cwd);
+    } catch (err) {
+      if (err instanceof ConfigError) {
+        console.error(`Error: ${err.message}`);
+        process.exit(1);
+      }
+      throw err;
+    }
+
+    const fixes = await computeFixes(cwd, config);
+    const lineCount = fixes.reduce((n, f) => n + f.changes.length, 0);
+    if (lineCount === 0) {
+      console.log('Nothing to fix.');
+      process.exit(0);
+    }
+    for (const fix of fixes) {
+      console.log(`\n${toTerminalSafe(fix.file)}`);
+      for (const c of fix.changes) {
+        console.log(`  line ${c.line} (${c.ruleIds.join(', ')})`);
+        console.log(`  - ${toTerminalSafe(c.before)}`);
+        console.log(`  + ${toTerminalSafe(c.after)}`);
+      }
+    }
+    console.log('');
+    if (opts.write) {
+      applyFixes(fixes);
+      console.log(`Fixed ${lineCount} line(s) in ${fixes.length} file(s).`);
+    } else {
+      console.log(`${lineCount} line(s) in ${fixes.length} file(s) can be fixed. Run with --write to apply.`);
+    }
     process.exit(0);
   });
 
@@ -154,6 +206,7 @@ program
   .option('--watch', 'Re-scan on file changes')
   .option('--concurrency <n>', 'Max files scanned in parallel (default: 8)')
   .option('--no-cache', 'Disable incremental file cache')
+  .option('--no-gitignore', 'Also scan files that git ignores')
   .option('--baseline <path>', 'Compare against a saved JSON report; only report new findings')
   .option('--min-confidence <level>', 'Minimum confidence level to report: low|medium|high (default: low)')
   .option('--diff [ref]', 'Scan only files changed vs. a git ref (default: origin/main)')
@@ -175,6 +228,7 @@ program
     watch?: boolean;
     concurrency?: string;
     cache?: boolean;
+    gitignore?: boolean;
     baseline?: string;
     minConfidence?: string;
     diff?: string | boolean;
@@ -394,7 +448,7 @@ async function runWatchMode(cwd: string, config: AuditConfig, status: StatusLogg
   const ownOutputs = new Set<string>([
     path.join(cwd, '.hound-cache.json'),
     ...Object.values(reportPaths(config, cwd)).filter((p): p is string => !!p),
-  ]);
+  ].map(pathKey));
 
   const findingKeys = (r: ScanResult) =>
     new Map(r.files.map(fr => [fr.file, new Set(fr.findings.map(f => f.fingerprint ?? `${f.id}:${f.lineStart}`))]));
@@ -413,8 +467,8 @@ async function runWatchMode(cwd: string, config: AuditConfig, status: StatusLogg
     const changed = [...pending];
     pending.clear();
     // Only rescan for files in scope (or previously reported, which covers deletions).
-    const inScope = new Set(await discoverFiles(cwd, config));
-    const relevant = changed.filter(p => inScope.has(p) || previous.has(paths.toReport(p)));
+    const inScope = new Set((await discoverFiles(cwd, config)).map(pathKey));
+    const relevant = changed.filter(p => inScope.has(pathKey(p)) || previous.has(paths.toReport(p)));
     if (relevant.length === 0) return;
 
     try {
@@ -438,7 +492,7 @@ async function runWatchMode(cwd: string, config: AuditConfig, status: StatusLogg
 
   const onEvent = (filePath: string) => {
     const abs = path.resolve(cwd, filePath);
-    if (ownOutputs.has(abs)) return;
+    if (ownOutputs.has(pathKey(abs))) return;
     pending.add(abs);
     clearTimeout(timer);
     timer = setTimeout(() => { running = running.then(flush); }, 150);
@@ -478,6 +532,7 @@ interface ScanOptions {
   verbose?: boolean;
   concurrency?: string;
   cache?: boolean;
+  gitignore?: boolean;
   baseline?: string;
   minConfidence?: string;
   diff?: string | boolean;
@@ -512,6 +567,7 @@ function buildConfig(opts: ScanOptions, cwd: string): AuditConfig {
     // commander defaults --no-cache options to true, so only an explicit
     // --no-cache (false) may override the config file.
     cache: opts.cache === false ? false : fileConfig.cache,
+    gitignore: opts.gitignore === false ? false : fileConfig.gitignore,
     baseline: opts.baseline ?? fileConfig.baseline,
     minConfidence: opts.minConfidence !== undefined
       ? parseEnumOption('--min-confidence', opts.minConfidence, CONFIDENCE_LEVELS)

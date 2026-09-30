@@ -109,6 +109,22 @@ describe('--diff mode integration', () => {
     expect(diffFiles).toEqual(['new.ts']); // old.ts unchanged vs HEAD
   });
 
+  it('matches changed files when the scan directory is reached through a symlink', async () => {
+    // git reports the resolved repository root; discovered files use the
+    // path as given. The same mismatch happens on Windows with 8.3 short
+    // names and forward-slash paths from fast-glob.
+    if (process.platform === 'win32') return;
+    fs.writeFileSync(path.join(repo, 'new.ts'), 'const q = { role: "system", content: `You are a bot. Answer ${userInput} now` };\n');
+    const link = `${repo}-link`;
+    fs.symlinkSync(repo, link, 'dir');
+    try {
+      const diff = await runScan(link, cfg({ diff: 'HEAD' }));
+      expect(diff.files.map(f => path.basename(f.file))).toEqual(['new.ts']);
+    } finally {
+      fs.unlinkSync(link);
+    }
+  });
+
   it('falls back to scanning all when the ref is invalid', async () => {
     const result = await runScan(repo, cfg({ diff: 'does-not-exist-ref' }));
     expect(result.files.length).toBeGreaterThan(0); // didn't silently scan nothing

@@ -38,6 +38,7 @@ function printFinding(f: Finding, verbose: boolean): void {
   if (verbose) {
     console.log(`    ${DIM}Confidence:${RESET} ${f.confidence}`);
     if (f.mitre) console.log(`    ${DIM}MITRE:${RESET}      ${CYAN}${f.mitre}${RESET}`);
+    if (f.owasp?.length) console.log(`    ${DIM}OWASP:${RESET}      ${CYAN}${f.owasp.join(', ')}${RESET}`);
     console.log(`    ${DIM}Risk points:${RESET} ${f.riskPoints}`);
     console.log(`    ${DIM}Remediation:${RESET} ${f.remediation}`);
   }
