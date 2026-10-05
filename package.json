@@ -63,7 +63,7 @@
     "eslint": "^10.0.2",
     "jest": "^30.5.2",
     "ts-jest": "^29.1.2",
-    "typescript": "^5.3.3"
+    "typescript": "^7.0.2"
   },
   "overrides": {
     "@babel/core": "^7.29.7",
